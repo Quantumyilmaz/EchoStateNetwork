@@ -4,7 +4,7 @@ A python framework for Echo State Network applications.
 ## Current capabilities
 
 - Supervised Learning
-  * 'excite', 'reg_fit' and 'validate' can be used in combination as shown in the link.
+  * 'excite', 'reg_fit' and 'validate' can be used in combination to complete supervised learning tasks.
   * Another easier way to execute a supervised learning job is to call 'session' method, where one passes X_train, y_train, X_val, y_val as arguments.
   It is not necessary to pass all of these and in that case ESN automatically recognizes the type of training/validation.
   
