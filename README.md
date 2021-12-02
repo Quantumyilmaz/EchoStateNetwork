@@ -1,5 +1,5 @@
 # EchoStateNetwork
-A framework for Echo State Network applications.
+A python framework for Echo State Network applications.
 
 ## Current capabilities
 
