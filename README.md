@@ -16,4 +16,4 @@ A python framework for Echo State Network applications.
 
 - Parallel Learning
 
-Use ESNS to learn with an ensemble of ESNs (and minibatching). This is useful when using vectorized environments in reinforcement learning applications.
+  Use ESNS to learn with an ensemble of ESNs (and minibatching). This is useful when using vectorized environments in reinforcement learning applications.
