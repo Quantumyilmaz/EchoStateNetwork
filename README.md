@@ -11,7 +11,9 @@ A python framework for Echo State Network applications.
 - Reinforcement Learning
 
 - Batch Learning
+
   Use ESNX to enable minibatching.
 
 - Parallel Learning
+
 Use ESNS to learn with an ensemble of ESNs (and minibatching). This is useful when using vectorized environments in reinforcement learning applications.
