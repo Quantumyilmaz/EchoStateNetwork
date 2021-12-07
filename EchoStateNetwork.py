@@ -1,3 +1,7 @@
+#Author: Ege Yilmaz
+#Year: 2021
+#Title: Echo State Network framework
+
 import numpy as np
 from scipy import linalg,stats
 from sklearn.linear_model import Ridge,LinearRegression
@@ -12,6 +16,8 @@ NoneType = type(None)
 sigmoid = lambda k: 1 / (1 + np.exp(-k))
 
 leaky_relu = lambda a: np.vectorize(lambda x: x if x>=0 else a*x,otypes=[np.float32])
+
+softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=0)
 
 mse = lambda k,l: np.square(k-l).mean()
 
@@ -60,7 +66,7 @@ class ESN:
 
     Author: Ege Yilmaz
     Year: 2021
-    Title: Echo State Network class for master's thesis.
+    Title: Echo State Network class for master's thesis at ETH Zurich.
     _
         - TRAIN: Excite the reservoir states and train the linear readout via regression.
 
@@ -207,7 +213,6 @@ class ESN:
         self.spectral_radius = abs(linalg.eig(self.W.cpu().numpy())[0]).max() if use_torch else abs(linalg.eig(self.W)[0]).max()
         if kwargs.get("verbose",1):
             print(f'Reservoir generated. Spectral Radius: {self.spectral_radius}')
-
 
 
     def scale_reservoir_weights(self,desired_spectral_radius: float):
@@ -873,7 +878,12 @@ class ESN:
         "TBD"
         pass
 
-    def update_reservoir_layer(self,in_:np.ndarray=None,out_:np.ndarray=None,leak_version:int = 0,leak_rate=1.,mode:Optional[str]=None):
+    def update_reservoir_layer(
+        self,in_:Union[np.ndarray,torch.tensor,NoneType]=None
+        ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
+        ,leak_version:int = 0
+        ,leak_rate=1.
+        ,mode:Optional[str]=None):
         """
         - in_: input array
         - out_: output array
@@ -901,7 +911,7 @@ class ESN:
 
         
         leak_version_ = leak_version if self.leak_version is None else self.leak_version
-        leak_rate_ = leak_rate if self.leak_version is None else self.leak_version
+        leak_rate_ = leak_rate if self.leak_rate is None else self.leak_rate
 
         self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_,leak_version=leak_version_,leak_rate=leak_rate_)
 
@@ -935,7 +945,7 @@ class ESN:
 
     def copy_from(self,reservoir,bind=False):
         assert isinstance(reservoir,self.__class__)
-        assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
+        # assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
         for attr_name,attr in reservoir.__dict__.items():
             if isinstance(attr,(int,float,NoneType,np.ufunc,np.vectorize,type(sigmoid),type(torch.tanh),type(torch.nn.functional.leaky_relu))) or bind:
                 self.__setattr__(attr_name,attr)
@@ -946,7 +956,7 @@ class ESN:
                     self.__setattr__(attr_name,attr.copy())
     
     def copy_connections_from(self,reservoir,bind=False,weights_list=None):
-        assert isinstance(reservoir,(ESN,ESNX,ESNS))
+        assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
 
         if weights_list is None:
             weights_list = ['Wout','W','Win','Wback']
@@ -963,7 +973,11 @@ class ESN:
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
 
-    def _get_update(self,x,in_:np.ndarray=None,out_:np.ndarray=None,leak_version:int = 0,leak_rate: float = 1):
+    def _get_update(self
+                    ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
+                    ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
+                    ,leak_version:int = 0
+                    ,leak_rate: float = 1):
 
         assert [0,1].count(leak_version)
 
@@ -974,7 +988,6 @@ class ESN:
             return (1-leak_rate)*x + leak_rate*self.f(self._mm( self.W, x ))    
         # no u, yes y
         elif in_ is None and out_ is not None:
-
             if self.Wback is None:
                 self.Wback = self._generate_Wback(out_.shape[0])
 
@@ -990,7 +1003,6 @@ class ESN:
                                 leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Wback, self._atleastND(out_)))
         # yes u, no y
         elif in_ is not None and out_ is None:
-
             if self.Win is None:
                 self.Win = self._generate_Win(in_.shape[0])
                 print("Win generated.")
@@ -1019,7 +1031,6 @@ class ESN:
 
         # yes u, yes y
         elif in_ is not None and out_ is not None:
-
             if self.Win is None:
                 self.Win = self._generate_Win(in_.shape[0])
                 print("Win generated.")
@@ -1055,6 +1066,8 @@ class ESN:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + \
                                     self._mm(self.Win, self._atleastND(in_)) + self._mm(self.Wback, self._atleastND(out_)))
+        else:
+            raise Exception("Something is terribly wrong.")
     
     def _pack_internal_state(self,in_=None,out_=None):
         # no u, no y
@@ -1094,6 +1107,10 @@ class ESN:
             elif f.lower().startswith('leaky'):
                 neg_slope = float(f.split('_')[-1])
                 return leaky_relu(neg_slope) if self._mm == np.dot else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
+            elif f.lower()=="softmax":
+                return softmax if self._mm == np.dot else lambda x: torch.softmax(x,0,dtype=torch.float64)
+            elif f.lower()=="id":
+                return Id
             else:
                 raise Exception("The specified activation function is not a registered one.")
         else:
@@ -1241,6 +1258,7 @@ class ESNS(ESN):
     def __init__(self, 
                 no_of_reservoirs: int,
                 batch_size: int,
+                bias: int,
                 W: np.ndarray = None, 
                 resSize: int = 450, 
                 xn: list = [0, 4, -4], 
@@ -1259,6 +1277,7 @@ class ESNS(ESN):
                         custom_initState=custom_initState, 
                         batch_size=batch_size,
                         use_torch=True,
+                        bias=bias,
                         **kwargs)
         
         no_of_reservoirs>1,"Use ESNX or ESN instead."
@@ -1290,6 +1309,7 @@ class ESNN(ESNX,torch.nn.Module):
                 batch_size: int,
                 in_size: int,
                 out_size: int,
+                bias: int,
                 W: np.ndarray = None, 
                 resSize: int = 450, 
                 xn: list = [0, 4, -4], 
@@ -1308,7 +1328,9 @@ class ESNN(ESNX,torch.nn.Module):
                         pn=pn, 
                         random_state=random_state, 
                         null_state_init=null_state_init, 
-                        custom_initState=custom_initState, 
+                        custom_initState=custom_initState,
+                        use_torch=True,
+                        bias = bias,
                         **kwargs)
 
         torch.nn.Module.__init__(self)
@@ -1327,8 +1349,8 @@ class ESNN(ESNX,torch.nn.Module):
 
     def forward(self,x):
         with torch.no_grad():
-            self.update_reservoir_layer(x)
-        return self.__call__(x)
+            self.update_reservoir_layer(x.T)
+        return self.__call__(x.T).T
 
     def __call__(self, in_):
 
