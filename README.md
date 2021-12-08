@@ -22,5 +22,5 @@ ESN.py allows:
 - Gradient Based Learning
   * Use ESNN to make the reservoir computer compatible with PyTorch. 
   * It is possible to use PyTorch with the rest of the reservoir types (ESN, ESNX, ESNS, ESNN) as well without the usage of gradients but regression. 
-  * ESNN only works with PyTorch whereas the other reservoir types work also with Numpy. 
+  * ESNN and ESNS only works with PyTorch whereas the other reservoir types also work with Numpy. 
     
