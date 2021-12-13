@@ -36,6 +36,12 @@ validation_rule_dict = {
                             {2:"Regular/Generative",3:"Regular/Predictive"}
                         }
 
+layer_hierarchy_dict = {'single':0,'batch':1,'ensemble':2}
+
+# KEEP IT UPDATED
+echo_state_networks_list = {'ESN','ESNX','ESNS','ESNN'}
+
+
 
 def at_least_2d(arr):
     if len(arr.shape)==1:
@@ -43,15 +49,15 @@ def at_least_2d(arr):
     elif len(arr.shape)==2:
         return arr
     else:
-        raise Exception("Unsupported array shape.")
+        raise Exception(f"Unsupported array shape: {arr.shape}.")
 
 def at_least_3d(arr):
     if len(arr.shape)==2:
-        return arr[:,:,None].double() if isinstance(arr,torch.Tensor) else arr[:,:,None]
+        return arr[:,:,None] if isinstance(arr,torch.Tensor) else arr[:,:,None]
     elif len(arr.shape)==3:
-        return arr.double() if isinstance(arr,torch.Tensor) else arr
+        return arr if isinstance(arr,torch.Tensor) else arr
     else:
-        raise Exception("Unsupported array shape.")
+        raise Exception(f"Unsupported array shape: {arr.shape}.")
 
 def Id(x):
     return x
@@ -171,10 +177,12 @@ class ESN:
             np.random.seed(int(random_state))
 
         if custom_initState is None:
-            self.reservoir_layer = np.zeros((self.resSize,1)) if null_state_init else np.random.rand(self.resSize,1)
+            self._core_nodes = np.zeros((self.resSize,1)) if null_state_init else np.random.rand(self.resSize,1)
+            self.reservoir_layer = self._core_nodes # self._core_nodes never gets changed
         else:
             assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
-            self.reservoir_layer = custom_initState
+            self._core_nodes = custom_initState.copy()
+            self.reservoir_layer = self._core_nodes # self._core_nodes never gets changed
 
         self.W = 0.1 * stats.rv_discrete(name='sparse', \
                         values=(xn, pn)).rvs(size=(resSize,resSize) \
@@ -183,6 +191,7 @@ class ESN:
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
+        self._layer_mode = 'single' #batch, ensemble
         self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function
         self._atleastND = at_least_2d
 
@@ -194,6 +203,7 @@ class ESN:
         self._bias_vec = self._tensor([self.bias]) if self.bias else None
 
         self.device = "cpu"
+        self._os = 'numpy'
         if use_torch:
             self._torchify()
 
@@ -215,6 +225,10 @@ class ESN:
             print(f'Reservoir generated. Spectral Radius: {self.spectral_radius}')
 
 
+        self.no_of_reservoirs = None
+        self.batch_size = None
+
+
     def scale_reservoir_weights(self,desired_spectral_radius: float):
 
         """ Scales the reservoir matrix to have the desired spectral radius."""
@@ -223,7 +237,7 @@ class ESN:
 
         print(f'Scaling matrix to have spectral radius {desired_spectral_radius}...')
         self.W *= desired_spectral_radius / self.spectral_radius
-        self.spectral_radius = abs(linalg.eig(self.W)[0]).max()
+        self.spectral_radius = self._get_spectral_radius()
         print(f'Done: {self.spectral_radius}')
         
 
@@ -892,34 +906,112 @@ class ESN:
         - mode: Optional. Set to 'train' if you are updating the reservoir layer for training purposes. Set to 'val' if you are doing so for validation purposes. \
                 This will allow the ESN to name the training/validation modes, which can be accessed from 'training_type' and 'val_type' attributes.
         """
-        #assert len(self.reservoir_layer.shape)>1 and self.reservoir_layer.shape[1]==1,self.reservoir_layer.shape
+        self._update_rule_id_check(in_,out_,mode)
 
-        if mode == "train":
-            update_rule_id = self._get_update_rule_id(in_,out_)
-            if self._update_rule_id_train is None:
-                self._update_rule_id_train = update_rule_id   
-            else:
-                assert update_rule_id == self._update_rule_id_train
-        elif mode == "val":
-            update_rule_id = self._get_update_rule_id(in_,out_)
-            if self._update_rule_id_val is None:
-                self._update_rule_id_val = update_rule_id   
-            else:
-                assert update_rule_id == self._update_rule_id_val
-        else:
-            assert mode is None,"You have given unsupported input for the 'mode' argument."
-
-        
-        leak_version_ = leak_version if self.leak_version is None else self.leak_version
-        leak_rate_ = leak_rate if self.leak_rate is None else self.leak_rate
+        leak_rate_ , leak_version_ = self._get_leak(leak_rate,leak_version)
 
         self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_,leak_version=leak_version_,leak_rate=leak_rate_)
+
+    def update_reservoir_layers_serially(self
+        , in_: Union[np.ndarray, torch.tensor, NoneType] = None
+        , out_: Union[np.ndarray, torch.tensor, NoneType] = None
+        , leak_version: int = 0
+        , leak_rate=1   
+        , mode: Optional[str] = None
+        ,init_size: int = 0):
+
+        """
+        WARNING: RESETS RESERVOIR LAYERS!
+        """
+
+        assert self._layer_mode != 'single', "Single reservoir layer cannot be updated serially."
+
+        if out_ is not None:
+            raise NotImplementedError
+
+        self._update_rule_id_check(in_,out_,mode)
+
+        leak_rate_ , leak_version_ = self._get_leak(leak_rate,leak_version)
+
+        layer_mode = self._layer_mode
+
+        batch_size = self.batch_size
+
+
+        if layer_mode == 'batch':
+            self.set_reservoir_layer_mode('single')  #(resSize,1)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.resSize,self.batch_size+init_size))))  #(resSize,batch_size)
+
+        elif self._layer_mode == 'ensemble':
+            self.set_reservoir_layer_mode('single')  #(resSize,1)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self.resSize,self.batch_size+init_size))))  #(no_of_reservoirs,resSize,batch_size)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.set_reservoir_layer_mode('ensemble',batch_size=1)  #(no_of_reservoirs,resSize,1)
+            assert self._atleastND(in_).shape[0] == self.no_of_reservoirs, [in_.shape,self.no_of_reservoirs]
+            
+        else:
+            raise Exception(f"Unsupported reservoir layer mode: '{self._layer_mode}'.")
+            
+        assert self._atleastND(in_).shape[-1] == batch_size + init_size, [in_.shape,batch_size,init_size]
+
+        res_layer_temp[...,0] = self._get_update(self.reservoir_layer,self._atleastND(in_)[...,0]
+                                                    ,out_,leak_version_,leak_rate_)[...,-1]
+        
+        for i in range(1,self.batch_size + init_size):
+            res_layer_temp[...,i] = self._get_update(res_layer_temp[...,i-1:i],self._atleastND(in_)[...,i]
+                                                    ,out_,leak_version_,leak_rate_)[...,-1]
+
+        if self._layer_mode == 'ensemble':
+            self.set_reservoir_layer_mode('single') #(resSize,1)
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.set_reservoir_layer_mode(layer_mode,batch_size=batch_size) #(no_of_reservoirs,resSize,batch_size) or #(resSize,batch_size)
+
+        self.reservoir_layer = res_layer_temp[...,init_size:]
 
     def reset_reservoir_layer(self):
         if self._mm == np.dot:
             self.reservoir_layer = self._reservoir_layer_init.copy()
         else:
             self.reservoir_layer = self._reservoir_layer_init.clone()
+
+    def set_reservoir_layer_mode(self,mode: str,batch_size: int=None,no_of_reservoirs :int=None):
+
+        """
+        WARNING: RESETS RESERVOIR LAYERS!
+        """
+
+        current_mode_level = layer_hierarchy_dict[self._layer_mode]
+        desired_mode_level = layer_hierarchy_dict[mode]
+
+        if desired_mode_level: #if not 'single'
+            if self.batch_size is None:
+                assert batch_size is not None
+            else:
+                if batch_size is not None and self.batch_size!=batch_size:
+                    warnings.warn(f"You are changing your reservoir's batch size from {self.batch_size} to {batch_size}.")
+                    self.batch_size = batch_size
+
+        if desired_mode_level>1: #if not 'single' and not 'batch'
+            if self.no_of_reservoirs is None:
+                assert no_of_reservoirs is not None
+                self.no_of_reservoirs = no_of_reservoirs
+            else:
+                if no_of_reservoirs is not None and self.no_of_reservoirs!=no_of_reservoirs:
+                    warnings.warn(f"You are changing your number of reservoirs from {self.no_of_reservoirs} to {no_of_reservoirs}.")
+                    self.no_of_reservoirs = no_of_reservoirs
+
+
+        if current_mode_level < desired_mode_level:
+            while self._layer_mode != mode:
+                self._expand_reservoir_layer()
+        elif current_mode_level > desired_mode_level:
+            while self._layer_mode != mode:
+                self._collapse_reservoir_layers()
+        else:
+            raise Exception(f"Current reservoir mode is already '{self._layer_mode}'.")
 
     def save(self,save_path:str):
         """
@@ -973,11 +1065,21 @@ class ESN:
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
 
+    def _get_spectral_radius(self):
+        if self._os == 'numpy':
+            return abs(linalg.eig(self.W)[0]).max()
+        elif self._os == 'torch':
+            return torch.linalg.eigvals(self.W).abs().max().item()
+        else:
+            raise Exception("Something is terribly wrong.")
+
     def _get_update(self
                     ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
                     ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
                     ,leak_version:int = 0
                     ,leak_rate: float = 1):
+
+        assert self.f is not None, 'Please specify the reservoir activation function.'
 
         assert [0,1].count(leak_version)
 
@@ -989,7 +1091,7 @@ class ESN:
         # no u, yes y
         elif in_ is None and out_ is not None:
             if self.Wback is None:
-                self.Wback = self._generate_Wback(out_.shape[0])
+                self.Wback = self._generate_Wback(self._atleastND(out_).shape[-2])
 
             assert self._get_tensor_device(out_) == self.device, (self.device,out_)
             
@@ -1004,8 +1106,8 @@ class ESN:
         # yes u, no y
         elif in_ is not None and out_ is None:
             if self.Win is None:
-                self.Win = self._generate_Win(in_.shape[0])
-                print("Win generated.")
+                self.Win = self._generate_Win(self._atleastND(in_).shape[-2])
+                print("Win (input weights) generated.")
 
             assert self._get_tensor_device(in_) == self.device, (self.device,in_)
 
@@ -1032,10 +1134,10 @@ class ESN:
         # yes u, yes y
         elif in_ is not None and out_ is not None:
             if self.Win is None:
-                self.Win = self._generate_Win(in_.shape[0])
+                self.Win = self._generate_Win(self._atleastND(in_).shape[-2])
                 print("Win generated.")
             if self.Wback is None:
-                self.Wback = self._generate_Wback(out_.shape[0])
+                self.Wback = self._generate_Wback(self._atleastND(out_).shape[-2])
                 print("Wback generated.")
 
             assert self._get_tensor_device(in_) == self.device , (self.device,in_)
@@ -1069,6 +1171,77 @@ class ESN:
         else:
             raise Exception("Something is terribly wrong.")
     
+    def _collapse_reservoir_layers(self):
+
+        """
+        WARNING: RESETS RESERVOIR LAYERS!
+        """
+
+        if self._layer_mode == 'single':
+            raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be collapsed further in dimension.')
+
+        self.reset_reservoir_layer()
+
+        if self._layer_mode == 'batch':
+            self.reservoir_layer = self.reservoir_layer[:,0:1]
+            if self.bias:
+                self._bias_vec = self._bias_vec[:,0:1]
+
+            self._layer_mode = 'single'
+
+        elif self._layer_mode == 'ensemble':
+            self.reservoir_layer = self.reservoir_layer[0,:,:]
+            if self.bias:
+                self._bias_vec = self._bias_vec[0,:,:]
+
+            self._vstack = torch.vstack
+            self._hstack = torch.hstack
+            self._atleastND = at_least_2d
+
+            self._layer_mode = 'batch'
+
+        else:
+            raise Exception(f"Unknown layer mode: {self._layer_mode}. Needs to be one of the following: {','.join(layer_hierarchy_dict.keys())}.")
+        
+        self._bias_vec = self._send_tensor_to_device(self._bias_vec)
+        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
+    
+    def _expand_reservoir_layer(self):
+
+        """
+        WARNING: RESETS RESERVOIR LAYERS!
+        """
+
+        if self._layer_mode == 'ensemble':
+            raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be expanded further in dimension.')
+
+        self.reset_reservoir_layer()
+
+        if self._layer_mode == 'single':
+            self.reservoir_layer = self._column_stack(self.batch_size*[self.reservoir_layer])
+            if self.bias:
+                self._bias_vec = self._tensor(np.ones((1,self.batch_size))*self.bias)
+        
+            self._layer_mode = 'batch'
+
+        elif self._layer_mode == 'batch':
+            assert self._os == 'torch', "To use ensemble mode, please pass in keyword argument 'use_torch=True' when initializing your Echo State Network."
+            self.reservoir_layer = torch.stack(self.no_of_reservoirs*[self.reservoir_layer])
+            if self.bias:
+                self._bias_vec = torch.ones(self.no_of_reservoirs,1,self.batch_size)*self.bias
+            
+            self._layer_mode = 'ensemble'
+
+            self._vstack = lambda x: torch.cat(x,1)
+            self._hstack = lambda x: torch.cat(x,2)
+            self._atleastND = at_least_3d
+        
+        else:
+            raise Exception(f"Unknown layer mode: {self._layer_mode}. Needs to be one of the following: {','.join(layer_hierarchy_dict.keys())}.")
+
+        self._bias_vec = self._send_tensor_to_device(self._bias_vec)
+        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
+
     def _pack_internal_state(self,in_=None,out_=None):
         # no u, no y
         if in_ is None and out_ is None:
@@ -1088,13 +1261,42 @@ class ESN:
     
     def _get_update_rule_id(self,in_=None,out_=None):
         return min(3,(bool(in_ is not None) + 1)*(bool(in_ is not None)+bool(out_ is not None)))
+    
+    def _update_rule_id_check(self,in_,out_,mode):
+        #assert len(self.reservoir_layer.shape)>1 and self.reservoir_layer.shape[1]==1,self.reservoir_layer.shape
+
+        if mode == "train":
+            update_rule_id = self._get_update_rule_id(in_,out_)
+            if self._update_rule_id_train is None:
+                self._update_rule_id_train = update_rule_id   
+            else:
+                assert update_rule_id == self._update_rule_id_train
+        elif mode == "val":
+            update_rule_id = self._get_update_rule_id(in_,out_)
+            if self._update_rule_id_val is None:
+                self._update_rule_id_val = update_rule_id   
+            else:
+                assert update_rule_id == self._update_rule_id_val
+        else:
+            assert mode is None,"You have given unsupported input for the 'mode' argument."
+
+    def _get_leak(self,leak_rate,leak_version):
+        leak_version_ = leak_version if self.leak_version is None else self.leak_version
+        leak_rate_ = leak_rate if self.leak_rate is None else self.leak_rate
+        return leak_rate_ , leak_version_
 
     def _generate_Win(self,inSize):
-        return self._tensor(np.random.rand(self.resSize,self.bias+inSize) - 0.5)
+        Win = self._tensor(np.random.rand(self.resSize,bool(self.bias)+inSize) - 0.5)
+        Win = self._send_tensor_to_device(Win)
+        assert self._get_tensor_device(Win) == self.device
+        return Win
         # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
         # self.Win = np.where(Win==0, -1, Win)
     def _generate_Wback(self,outSize):
-        return self._tensor(np.random.uniform(-2,2,size=(self.resSize,outSize)))
+        Wback = self._tensor(np.random.uniform(-2,2,size=(self.resSize,outSize)))
+        Wback = self._send_tensor_to_device(Wback)
+        assert self._get_tensor_device(Wback) == self.device
+        return Wback
 
     def _fn_interpreter(self,f):
         if isinstance(f,str):
@@ -1160,6 +1362,12 @@ class ESN:
             else:
                 raise NotImplementedError
 
+    def _get_clone(self,x):
+        if self._mm == np.dot:
+            return x.copy()
+        else:
+            return x.clone()
+
     def _torchify(self):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1182,6 +1390,8 @@ class ESN:
         if self._random_state is not None:
             torch.manual_seed(int(self._random_state))
 
+        self._os = 'torch'
+
     def _get_tensor_device(self,x):
         if isinstance(x,np.ndarray):
             return 'cpu'
@@ -1189,6 +1399,10 @@ class ESN:
             return x.device.type
         else:
             raise Exception("Unsupported Tensor/Array type!")
+
+    def _send_tensor_to_device(self,x):
+        if hasattr(x,'to'):
+            return x.to(self.device)
 
     def __call__(self, in_):
 
@@ -1204,6 +1418,8 @@ class ESN:
         else:
             self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
         return self._mm(self.Wout,self._U)
+
+
 
 class ESNX(ESN):
     """
@@ -1231,22 +1447,19 @@ class ESNX(ESN):
                         custom_initState=custom_initState, 
                         **kwargs)
         
-        batch_size>1
+        assert batch_size>1
 
         self.batch_size = batch_size
-        self.reservoir_layer = self._column_stack(batch_size*[self.reservoir_layer])
-        if self._mm == np.dot:
-            self._reservoir_layer_init = self.reservoir_layer.copy()
-        else:
-            self._reservoir_layer_init = self.reservoir_layer.clone()
-        if self.bias:
-            self._bias_vec = self._tensor(np.ones((1,batch_size))*self.bias)
+
+        self.set_reservoir_layer_mode('batch')
+
 
     def _pack_internal_state(self,in_=None,out_=None):
-        pass
-
+        raise NotImplementedError
     def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
-        pass
+        raise NotImplementedError
+
+
 
 class ESNS(ESN):
     """
@@ -1280,24 +1493,23 @@ class ESNS(ESN):
                         bias=bias,
                         **kwargs)
         
-        no_of_reservoirs>1,"Use ESNX or ESN instead."
+        assert no_of_reservoirs>1,"Use ESNX or ESN instead."
 
 
         self.no_of_reservoirs = no_of_reservoirs
         self.batch_size = batch_size
-        self.reservoir_layer = self._tensor(self.reservoir_layer).to(self.device)
-        self.reservoir_layer = torch.stack(no_of_reservoirs*[torch.hstack(batch_size*[self.reservoir_layer])])
-        assert self.reservoir_layer.shape == (no_of_reservoirs,resSize,batch_size)
-        self._reservoir_layer_init = self.reservoir_layer.clone()
-        if self.bias:
-            self._bias_vec = (torch.ones(no_of_reservoirs,1,batch_size)*self.bias).to(self.device)
+
+        self.set_reservoir_layer_mode('ensemble')
 
 
-        self._vstack = lambda x: torch.cat(x,1)
-        self._hstack = lambda x: torch.cat(x,2)
-        self._atleastND = at_least_3d
+    def _pack_internal_state(self,in_=None,out_=None):
+        raise NotImplementedError
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+        raise NotImplementedError
 
-class ESNN(ESNX,torch.nn.Module):
+
+
+class ESNN(ESN,torch.nn.Module):
     """
     EchoStateNetwork N
 
@@ -1305,23 +1517,23 @@ class ESNN(ESNX,torch.nn.Module):
 
     """
 
-    def __init__(self, 
+    def __init__(self,
                 batch_size: int,
                 in_size: int,
                 out_size: int,
                 bias: int,
+                no_of_reservoirs: int=None,
                 W: np.ndarray = None, 
-                resSize: int = 450, 
-                xn: list = [0, 4, -4], 
+                resSize: int = 450,
+                xn: list = [0, 4, -4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
                 random_state: float = None, 
                 null_state_init: bool = True,
                 custom_initState: np.ndarray = None,
                 **kwargs):
-        
 
-        ESNX.__init__(  self, 
-                        batch_size=batch_size,
+
+        ESN.__init__(  self, 
                         W=W, 
                         resSize=resSize, 
                         xn=xn, 
@@ -1335,6 +1547,16 @@ class ESNN(ESNX,torch.nn.Module):
 
         torch.nn.Module.__init__(self)
 
+        assert batch_size>1
+
+        self.batch_size = batch_size
+
+        if no_of_reservoirs:
+            self.no_of_reservoirs=no_of_reservoirs
+            self.set_reservoir_layer_mode('ensemble')
+        else:
+            self.set_reservoir_layer_mode('batch')
+
         self.Wout = torch.nn.Linear(in_size+self.resSize+self.bias, out_size,bias=False,device=self.device,dtype=torch.float64)
 
         self._inSize = in_size
@@ -1343,16 +1565,20 @@ class ESNN(ESNX,torch.nn.Module):
 
     def _mm(self,a,b):
         if hasattr(a,'in_features'):
-            return a(b.T).T
+            return a(b)
         else:
             return torch.matmul(a,b)
 
     def forward(self,x):
         with torch.no_grad():
-            self.update_reservoir_layer(x.T)
-        return self.__call__(x.T).T
+            self.update_reservoir_layer(x.transpose(-2,-1))
+        return self.__call__(x)
 
-    def __call__(self, in_):
+    def __call__(self, in_,init_size=0):
+
+        """
+        WARNING: DOES NOT UPDATE RESERVOIR LAYER(S)!
+        """
 
         assert self._get_tensor_device(in_) == self.device, (self.device,in_)
 
@@ -1361,9 +1587,16 @@ class ESNN(ESNX,torch.nn.Module):
         else:
             assert self._update_rule_id_train==2
 
-        if self.bias:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self._bias_vec).transpose(-1,-2))).transpose(-1,-2)
-        else:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
 
-        return self._mm(self.Wout,self._U)
+        if self.bias:
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self._bias_vec)))
+        else:
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer))
+
+        return self._mm(self.Wout,self._U.transpose(-2,-1))
+
+    
+    def _pack_internal_state(self,in_=None,out_=None):
+        raise NotImplementedError
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+        raise NotImplementedError
