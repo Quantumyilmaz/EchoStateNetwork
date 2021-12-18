@@ -62,6 +62,14 @@ def at_least_3d(arr):
 def Id(x):
     return x
 
+def is_normal(x):
+    if isinstance(x,torch.Tensor):
+        torch.all(torch.matmul(x,x.T.conj())==torch.matmul(x.T.conj(),x))
+    elif isinstance(x,np.ndarray):
+        np.all(np.dot(x,x.T.conj())==np.dot(x.T.conj(),x))
+    else:
+        raise Exception(f"Unsupported array type.")
+
 class ESN:
 
     # TODO: Add bias to every layer?
@@ -221,6 +229,7 @@ class ESN:
         self._X_val = None
 
         self.spectral_radius = abs(linalg.eig(self.W.cpu().numpy())[0]).max() if use_torch else abs(linalg.eig(self.W)[0]).max()
+        self.spectral_norm = self._get_spectral_norm()
         if kwargs.get("verbose",1):
             print(f'Reservoir generated. Spectral Radius: {self.spectral_radius}')
 
@@ -229,16 +238,30 @@ class ESN:
         self.batch_size = None
 
 
-    def scale_reservoir_weights(self,desired_spectral_radius: float):
+    def scale_reservoir_weights(self,desired_scaling: float, reference='ev'):
 
-        """ Scales the reservoir matrix to have the desired spectral radius."""
+        """ 
+        Description
+        -
+        Scales the reservoir matrix to have the desired spectral radius.
 
-        assert isinstance(desired_spectral_radius,float)
+        Variables
+        - desired_scaling: Desired spectral radius or spectral norm depending on the chosen reference.
+        - reference: Set to 'ev' or 'sv' to scale the reservoir matrix by taking spectral radius or spectral norm as reference.
 
-        print(f'Scaling matrix to have spectral radius {desired_spectral_radius}...')
-        self.W *= desired_spectral_radius / self.spectral_radius
-        self.spectral_radius = self._get_spectral_radius()
-        print(f'Done: {self.spectral_radius}')
+        """
+
+        assert isinstance(desired_scaling,float)
+        
+        print(f"Scaling matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
+        if reference=='ev':
+            self.W *= desired_scaling / self.spectral_radius
+            self.spectral_radius = self._get_spectral_radius()
+            print(f'Done: {self.spectral_radius}')
+        elif reference=='sv':
+            self.W *= desired_scaling / self.spectral_norm
+            self.spectral_norm = self._get_spectral_norm()
+            print(f'Done: {self.spectral_norm}')
         
 
     def excite(self,
@@ -1072,6 +1095,9 @@ class ESN:
             return torch.linalg.eigvals(self.W).abs().max().item()
         else:
             raise Exception("Something is terribly wrong.")
+
+    def _get_spectral_norm(self):
+        return torch.linalg.svdvals(self.W).max().item()
 
     def _get_update(self
                     ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
