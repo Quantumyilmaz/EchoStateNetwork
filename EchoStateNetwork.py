@@ -1044,6 +1044,7 @@ class ESN:
         """
         Save path example: ./saved_reservoir.pkl
         """
+        self.cpu()
         temp = pd.Series(self.__dict__.values(),index=self.__dict__.keys())
         temp['__class__'] = self.__class__ # str(self.__class__)[:-2].split('.')[-1]
         temp.to_pickle(save_path)
@@ -1091,6 +1092,11 @@ class ESN:
                         self.__setattr__(attr_name,self._tensor(attr.copy()))
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
+    
+    def cpu(self):
+        for val in self.__dict__.values():
+            if hasattr(val,'cpu'):
+                val = val.cpu()
 
     def _get_spectral_radius(self):
         if self._os == 'numpy':
