@@ -1044,8 +1044,8 @@ class ESN:
         """
         Save path example: ./saved_reservoir.pkl
         """
-        self.cpu()
-        temp = pd.Series(self.__dict__.values(),index=self.__dict__.keys())
+        vals = [val if not hasattr(val,'cpu') else val.cpu() for val in self.__dict__.values()]
+        temp = pd.Series(vals,index=self.__dict__.keys())
         temp['__class__'] = self.__class__ # str(self.__class__)[:-2].split('.')[-1]
         temp.to_pickle(save_path)
         save_file_name = save_path.split("/")[-1]
