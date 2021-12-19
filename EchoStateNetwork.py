@@ -1417,6 +1417,7 @@ class ESN:
                 self.__setattr__(W_str,self._tensor(W_).to(device))
 
             self._bias_vec = self._tensor(self._bias_vec).to(device)
+            self._core_nodes = self._tensor(self._core_nodes).to(device)
             self.reservoir_layer = self._tensor(self.reservoir_layer).to(device)
             self._reservoir_layer_init = self.reservoir_layer.clone()
             self._vstack = torch.vstack
