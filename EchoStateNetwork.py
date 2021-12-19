@@ -231,7 +231,7 @@ class ESN:
         self.spectral_radius = abs(linalg.eig(self.W.cpu().numpy())[0]).max() if use_torch else abs(linalg.eig(self.W)[0]).max()
         self.spectral_norm = self._get_spectral_norm()
         if kwargs.get("verbose",1):
-            print(f'Reservoir generated. Spectral Radius: {self.spectral_radius}')
+            print(f'Reservoir generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
 
 
         self.no_of_reservoirs = None
