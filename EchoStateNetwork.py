@@ -64,9 +64,9 @@ def Id(x):
 
 def is_normal(x):
     if isinstance(x,torch.Tensor):
-        torch.all(torch.matmul(x,x.T.conj())==torch.matmul(x.T.conj(),x))
+        return torch.all(torch.matmul(x,x.T.conj())==torch.matmul(x.T.conj(),x))
     elif isinstance(x,np.ndarray):
-        np.all(np.dot(x,x.T.conj())==np.dot(x.T.conj(),x))
+        return np.all(np.dot(x,x.T.conj())==np.dot(x.T.conj(),x))
     else:
         raise Exception(f"Unsupported array type.")
 
