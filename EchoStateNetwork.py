@@ -257,11 +257,15 @@ class ESN:
         if reference=='ev':
             self.W *= desired_scaling / self.spectral_radius
             self.spectral_radius = self._get_spectral_radius()
+            self.spectral_norm = self._get_spectral_norm()
             print(f'Done: {self.spectral_radius}')
         elif reference=='sv':
             self.W *= desired_scaling / self.spectral_norm
             self.spectral_norm = self._get_spectral_norm()
+            self.spectral_radius = self._get_spectral_radius()
             print(f'Done: {self.spectral_norm}')
+        else:
+            raise Exception('{reference} is unsupported.')
         
 
     def excite(self,
