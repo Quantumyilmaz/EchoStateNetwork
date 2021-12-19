@@ -2,7 +2,7 @@
 A python framework for Echo State Network applications.
 
 ## Current capabilities
-ESN.py allows:
+EchoStateNetwork.py allows:
 
 - Supervised Learning
   * 'excite', 'reg_fit' and 'validate' can be used in combination to complete supervised learning tasks.
