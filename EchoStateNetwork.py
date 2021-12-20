@@ -6,10 +6,10 @@ import numpy as np
 from scipy import linalg,stats
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Optional, Union
 import torch
-from torch.functional import Tensor
 import pandas as pd
+# from functools import reduce
 
 NoneType = type(None)
 
