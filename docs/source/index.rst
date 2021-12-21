@@ -7,7 +7,6 @@ Welcome to EchoStateNetwork's documentation!
 ============================================
 
 .. toctree::
-   README.md
    :maxdepth: 2
    :caption: Contents:
 
