@@ -13,6 +13,7 @@
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Welcome to EchoStateNetwork’s documentation!" href="index.html" />
@@ -34,27 +35,10 @@
             
   <section id="esn">
 <h1>ESN<a class="headerlink" href="#esn" title="Permalink to this headline">¶</a></h1>
-<section id="esn-init">
-<h2>ESN.__init__<a class="headerlink" href="#esn-init" title="Permalink to this headline">¶</a></h2>
-<dl class="py function">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">__init__(self,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">W:</span> <span class="pre">np.ndarray=None,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">resSize:</span> <span class="pre">int=400,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">xn:</span> <span class="pre">list=[0,4,-4],</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">pn:</span> <span class="pre">list=[0.9875,</span> <span class="pre">0.00625,</span> <span class="pre">0.00625],</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">random_state:</span> <span class="pre">float=None,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">null_state_init:</span> <span class="pre">bool=True,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">custom_initState:</span> <span class="pre">np.ndarray=None,</span></span></dt>
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">**kwargs)</span> <span class="pre">-&gt;</span> <span class="pre">None</span></span></dt>
+<p>Initializes reservoir computer.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ESN">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ESN</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resSize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">400</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0,</span> <span class="pre">4,</span> <span class="pre">-</span> <span class="pre">4]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0.9875,</span> <span class="pre">0.00625,</span> <span class="pre">0.00625]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_state_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_initState</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#ESN" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <div class="line-block">
@@ -68,6 +52,353 @@
 </dd>
 <dt class="field-even">resSize</dt>
 <dd class="field-even"><p>Number of units (nodes) in the reservoir.</p>
+</dd>
+<dt class="field-odd">xn , pn</dt>
+<dd class="field-odd"><p>User can provide custom random variable to control the connectivity of the reservoir. <code class="docutils literal notranslate"><span class="pre">xn</span></code> are the values and <code class="docutils literal notranslate"><span class="pre">pn</span></code> are the corresponding probabilities.</p>
+</dd>
+<dt class="field-even">random_state</dt>
+<dd class="field-even"><p>Fix random state. If provided, <code class="docutils literal notranslate"><span class="pre">np.random.seed</span></code> and <code class="docutils literal notranslate"><span class="pre">torch.manual_seed</span></code> are called.</p>
+</dd>
+<dt class="field-odd">null_state_init</dt>
+<dd class="field-odd"><p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, starts the reservoir from null state. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, initializes randomly. Default is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd>
+<dt class="field-even">custom_initState</dt>
+<dd class="field-even"><p>User can give custom initial reservoir state.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Keyword Arguments</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">verbose</dt>
+<dd class="field-odd"><p>Mute the initialization message.</p>
+</dd>
+<dt class="field-even">f</dt>
+<dd class="field-even"><p>User can provide custom activation function of the reservoir.</p>
+</dd>
+<dt class="field-odd">leak_rate</dt>
+<dd class="field-odd"><p>Leak parameter in Leaky Integrator ESN (LiESN).</p>
+</dd>
+<dt class="field-even">leak_version</dt>
+<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">0</span></code> for <a class="reference external" href="https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'">Jaeger’s recursion formula</a>, give 1 for recursion formula in <a class="reference external" href="https://ieeexplore.ieee.org/document/9458984">ESNRLS paper</a>.</p>
+</dd>
+<dt class="field-odd">bias</dt>
+<dd class="field-odd"><p>Set strength of bias in the input, reservoir and readout connections.</p>
+</dd>
+<dt class="field-even">Win , Wout , Wback</dt>
+<dd class="field-even"><p>User can provide custom input, output, feedback matrices.</p>
+</dd>
+<dt class="field-odd">use_torch</dt>
+<dd class="field-odd"><p>Use pytorch instead of numpy. Will use cuda if available.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="esn-scale-reservoir-weights">
+<h2>ESN.scale_reservoir_weights<a class="headerlink" href="#esn-scale-reservoir-weights" title="Permalink to this headline">¶</a></h2>
+<p>Scales the reservoir connection matrix to have certain spectral norm or radius.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="scale_reservoir_weights">
+<span class="sig-name descname"><span class="pre">scale_reservoir_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_scaling</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ev'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#scale_reservoir_weights" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">desired_scaling</dt>
+<dd class="field-odd"><p>Scales the reservoir matrix to have the desired spectral norm or radius.</p>
+</dd>
+<dt class="field-even">reference</dt>
+<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">'ev'</span></code> (eigenvalue) to choose spectral radius, <code class="docutils literal notranslate"><span class="pre">'sv'</span></code> (singular value) to choose spectral norm as reference.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+<section id="esn-excite">
+<h2>ESN.excite<a class="headerlink" href="#esn-excite" title="Permalink to this headline">¶</a></h2>
+<p>Time series data is used to update the reservoir nodes according to the formula:</p>
+<p><span class="math notranslate nohighlight">\(x(n+1) = (1-\alpha) \cdot x(n) + \alpha \cdot f(W_{in} \cdot u(n+1) + W \cdot x(n) + Wback \cdot y(n))\)</span></p>
+<p>, where <span class="math notranslate nohighlight">\(x\)</span> are the reservoir nodes, <span class="math notranslate nohighlight">\(u\)</span> inputs, <span class="math notranslate nohighlight">\(y\)</span> labels, <span class="math notranslate nohighlight">\(\alpha\)</span> leaking rate, <span class="math notranslate nohighlight">\(f\)</span> activation function.
+This formula is for when both <code class="docutils literal notranslate"><span class="pre">u</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> are provided.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The appropriate update formula is automatically recognized from the given parameters.</p>
+</div>
+<p>After initial transient, updated <span class="math notranslate nohighlight">\(x\)</span> are registered at each iteration and can be called via <code class="docutils literal notranslate"><span class="pre">reg_X</span></code> attribute.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="excite">
+<span class="sig-name descname"><span class="pre">excite</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leak_rate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initTrainLen_ratio</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wobble</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wobbler</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leak_version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#excite" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">u</dt>
+<dd class="field-odd"><p>Input. Has shape […,time].</p>
+</dd>
+<dt class="field-even">y</dt>
+<dd class="field-even"><p>To be forecast. Has shape […,time].</p>
+</dd>
+<dt class="field-odd">bias</dt>
+<dd class="field-odd"><p>Set strength of bias in the input, reservoir and readout connections.</p>
+</dd>
+<dt class="field-even">f</dt>
+<dd class="field-even"><p>User can provide custom activation function. Default is None. Available activations: <code class="docutils literal notranslate"><span class="pre">'tanh'</span></code>, <code class="docutils literal notranslate"><span class="pre">'relu'</span></code>, <code class="docutils literal notranslate"><span class="pre">'sigmoid'</span></code>. For leaky relu activation, write <code class="docutils literal notranslate"><span class="pre">'leaky_{leaky</span> <span class="pre">rate}'</span></code>, e.g. <code class="docutils literal notranslate"><span class="pre">'leaky_0.5'</span></code>.</p>
+</dd>
+<dt class="field-odd">leak_rate</dt>
+<dd class="field-odd"><p>Leak parameter in Leaky Integrator ESN (LiESN).</p>
+</dd>
+<dt class="field-even">leak_version</dt>
+<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">0</span></code> for <a class="reference external" href="https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'">Jaeger’s recursion formula</a>, give 1 for recursion formula in <a class="reference external" href="https://ieeexplore.ieee.org/document/9458984">ESNRLS paper</a>.</p>
+</dd>
+<dt class="field-odd">initLen</dt>
+<dd class="field-odd"><p>Number of timesteps to be taken as initial transient tolarance. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.</p>
+</dd>
+<dt class="field-even">trainLen</dt>
+<dd class="field-even"><p>Total number of training steps. Will be set to the length of input data.</p>
+</dd>
+<dt class="field-odd">initTrainLen_ratio</dt>
+<dd class="field-odd"><p>Alternative to initLen, the user can provide the initialization period as ratio of the training length. The input <code class="docutils literal notranslate"><span class="pre">8</span></code> would mean that the initialization period will be an eighth of the training length.</p>
+</dd>
+<dt class="field-even">wobble</dt>
+<dd class="field-even"><p>For enabling noise to be added to <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p>
+</dd>
+<dt class="field-odd">wobbler</dt>
+<dd class="field-odd"><p>User can provide custom noise. Default is <code class="docutils literal notranslate"><span class="pre">np.random.uniform(-1,1)/10000</span></code>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Keyword Arguments</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">Win</dt>
+<dd class="field-odd"><p>Custom input weights.</p>
+</dd>
+<dt class="field-even">Wback</dt>
+<dd class="field-even"><p>Custom feedback weights.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="esn-reg-fit">
+<h2>ESN.reg_fit<a class="headerlink" href="#esn-reg-fit" title="Permalink to this headline">¶</a></h2>
+<p>Does a regression to <code class="docutils literal notranslate"><span class="pre">y</span></code> using the registered reservoir updates, which can be obtained from attribute <code class="docutils literal notranslate"><span class="pre">reg_X</span></code>:
+<span class="math notranslate nohighlight">\(W^{*} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2\)</span></p>
+<dl class="py function">
+<dt class="sig sig-object py" id="reg_fit">
+<span class="sig-name descname"><span class="pre">reg_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_out_inverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ridge_param</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error_measure</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'mse'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">np.ndarray</span></span></span><a class="headerlink" href="#reg_fit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">y</dt>
+<dd class="field-odd"><p>Data to fit.</p>
+</dd>
+<dt class="field-even">f_out_inverse</dt>
+<dd class="field-even"><p>User can give custom output activation. Please give the INVERSE of the activation function. No activation is used by default.</p>
+</dd>
+<dt class="field-odd">regr</dt>
+<dd class="field-odd"><p>User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn’s regressor.</p>
+</dd>
+<dt class="field-even">reg_type</dt>
+<dd class="field-even"><p>Regression type. Can be <code class="docutils literal notranslate"><span class="pre">ridge</span></code> or <code class="docutils literal notranslate"><span class="pre">linear</span></code>. Default is <code class="docutils literal notranslate"><span class="pre">linear</span></code>.</p>
+</dd>
+<dt class="field-odd">ridge_param</dt>
+<dd class="field-odd"><p>Regularization factor in ridge regression.</p>
+</dd>
+<dt class="field-even">solver</dt>
+<dd class="field-even"><p>See <a class="reference external" href="https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html?highlight=ridge#sklearn.linear_model.Ridge">scikit documentation</a>.</p>
+</dd>
+<dt class="field-odd">error_measure</dt>
+<dd class="field-odd"><p>Type of error to be displayed. Can be <code class="docutils literal notranslate"><span class="pre">'mse'</span></code> (Mean Squared Error) or <code class="docutils literal notranslate"><span class="pre">'mape'</span></code> (Mean Absolute Percentage Error).</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Keyword Arguments</dt>
+<dd class="field-even"><dl class="field-list">
+<dt class="field-odd">verbose</dt>
+<dd class="field-odd"><p>For the error message.</p>
+</dd>
+<dt class="field-even">reg_X</dt>
+<dd class="field-even"><p>Lets you overwrite <code class="docutils literal notranslate"><span class="pre">self.reg_X</span></code> (matrix used in regression) with a custom one of your choice. </p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>For online training purposes, i.e. you call <code class="docutils literal notranslate"><span class="pre">excite</span></code> up to a certain point in your data and do a forecast at that point and repeat it at later points in your data. Instead of “exciting” reservoir states and doing regression multiple times up to these forecasts at varying points, which is inefficient since you perform same calculations repeatedly, you can excite using all data and use partial excitations, i.e. just the part of self.reg_X relevant and required for the regression.</p>
+</div>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="esn-validate">
+<h2>ESN.validate<a class="headerlink" href="#esn-validate" title="Permalink to this headline">¶</a></h2>
+<p>Returns forecast.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="validate">
+<span class="sig-name descname"><span class="pre">validate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">lambda</span> <span class="pre">x:</span> <span class="pre">...</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_transformer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">lambda</span> <span class="pre">x:</span> <span class="pre">...</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">np.ndarray</span></span></span><a class="headerlink" href="#validate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">u</dt>
+<dd class="field-odd"><p>Input series. Has shape […,time].</p>
+</dd>
+<dt class="field-even">y</dt>
+<dd class="field-even"><p>To be forecast. Has shape […,time].</p>
+</dd>
+<dt class="field-odd">valLen</dt>
+<dd class="field-odd"><p>Validation length.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">u</span></code> or <code class="docutils literal notranslate"><span class="pre">y</span></code> is provided it is not needed to be set. Mostly necessary for when neither u nor y is present.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">f_out</dt>
+<dd class="field-odd"><p>Custom output activation. Default is identity.</p>
+</dd>
+<dt class="field-even">output_transformer</dt>
+<dd class="field-even"><p>Transforms the reservoir outputs at the very end. Default is identity.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="esn-session">
+<h2>ESN.session<a class="headerlink" href="#esn-session" title="Permalink to this headline">¶</a></h2>
+<p>Executes a whole training/validation session by calling the methods <code class="docutils literal notranslate"><span class="pre">excite</span></code>, <code class="docutils literal notranslate"><span class="pre">train</span></code> and <code class="docutils literal notranslate"><span class="pre">validate</span></code>. Returns the forecasts.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="session">
+<span class="sig-name descname"><span class="pre">session</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X_t</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_t</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X_v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">training_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_out_inverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">lambda</span> <span class="pre">x:</span> <span class="pre">...</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_transformer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">lambda</span> <span class="pre">x:</span> <span class="pre">...</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initTrainLen_ratio</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valLen</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wobble_train</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wobbler_train</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_state_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_initState</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ridge_param</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error_measure</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'mse'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">np.ndarray</span></span></span><a class="headerlink" href="#session" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="field-list simple">
+<dt class="field-odd">X_t</dt>
+<dd class="field-odd"><p>Training inputs. Has shape […,time].</p>
+</dd>
+<dt class="field-even">y_t</dt>
+<dd class="field-even"><p>Training targets. Has shape […,time].</p>
+</dd>
+<dt class="field-odd">X_v</dt>
+<dd class="field-odd"><p>Validation inputs. Has shape […,time].</p>
+</dd>
+<dt class="field-even">y_v</dt>
+<dd class="field-even"><p>Validation targets. Has shape […,time].</p>
+</dd>
+<dt class="field-odd">training_data</dt>
+<dd class="field-odd"><p>Data to fit to in regression. It will be set to <code class="docutils literal notranslate"><span class="pre">y_t</span></code> automatically if it is not provided. Either way, <code class="docutils literal notranslate"><span class="pre">y_t</span></code> will be used when calling <code class="docutils literal notranslate"><span class="pre">excite</span></code>.</p>
+</dd>
+<dt class="field-even">f_out_inverse</dt>
+<dd class="field-even"><p>Please give the INVERSE activation function. User can give custom output activation. No activation is used by default.</p>
+</dd>
+<dt class="field-odd">f_out</dt>
+<dd class="field-odd"><p>Custom output activation. Default is identity.</p>
+</dd>
+<dt class="field-even">output_transformer</dt>
+<dd class="field-even"><p>Transforms the reservoir outputs at the very end. Default is identity.</p>
+</dd>
+<dt class="field-odd">initLen</dt>
+<dd class="field-odd"><p>No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.</p>
+</dd>
+<dt class="field-even">initTrainLen_ratio</dt>
+<dd class="field-even"><p>Alternative to initLen, the user can provide the initialization period as ratio of the training length. An input of 8 would mean that the initialization period will be an eighth of the training length.</p>
+</dd>
+<dt class="field-odd">trainLen</dt>
+<dd class="field-odd"><p>Total no of training steps. Will be set to the length of input data, if not provided.</p>
+</dd>
+<dt class="field-even">valLen</dt>
+<dd class="field-even"><p>Total no of validation steps. Will be set to the length of input data, if not provided.</p>
+</dd>
+<dt class="field-odd">wobble_train</dt>
+<dd class="field-odd"><p>For enabling noise to be added to <code class="docutils literal notranslate"><span class="pre">y_t</span></code>.</p>
+</dd>
+<dt class="field-even">wobbler_train</dt>
+<dd class="field-even"><p>User can provide custom noise. Default is <code class="docutils literal notranslate"><span class="pre">np.random.uniform(-1,1)/10000</span></code>.</p>
+</dd>
+<dt class="field-odd">null_state_init</dt>
+<dd class="field-odd"><p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, starts the reservoir from null state. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, initializes randomly. Default is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd>
+<dt class="field-even">custom_initState</dt>
+<dd class="field-even"><p>User can give custom initial reservoir state.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Keyword Arguments</dt>
+<dd class="field-even"><dl class="field-list simple">
+<dt class="field-odd">Win , Wback</dt>
+<dd class="field-odd"><p>User can provide custom input, feedback matrices.</p>
+</dd>
+<dt class="field-even">f</dt>
+<dd class="field-even"><p>User can provide custom activation function of the reservoir.</p>
+</dd>
+<dt class="field-odd">bias</dt>
+<dd class="field-odd"><p>Set strength of bias in the input, reservoir and readout connections.</p>
+</dd>
+<dt class="field-even">bias_val</dt>
+<dd class="field-even"><p>Set strength of bias in the input, reservoir and readout connections during validation. Default is bias used in training.</p>
+</dd>
+<dt class="field-odd">f_val</dt>
+<dd class="field-odd"><p>User can provide custom reservoir activation function to be used during validation. Default is activation used in training.</p>
+</dd>
+<dt class="field-even">leak_rate</dt>
+<dd class="field-even"><p>Leak parameter in Leaky Integrator ESN (LiESN).</p>
+</dd>
+<dt class="field-odd">leak_rate_val</dt>
+<dd class="field-odd"><p>Leak parameter in Leaky Integrator ESN (LiESN) during validation.</p>
+</dd>
+<dt class="field-even">leak_version</dt>
+<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">0</span></code> for <a class="reference external" href="https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'">Jaeger’s recursion formula</a>, give 1 for recursion formula in <a class="reference external" href="https://ieeexplore.ieee.org/document/9458984">ESNRLS paper</a>.</p>
+</dd>
+<dt class="field-odd">leak_version_val</dt>
+<dd class="field-odd"><p>Leaking version for validation. Default is the one used in training.</p>
+</dd>
+<dt class="field-even">wobble_val</dt>
+<dd class="field-even"><p>For enabling noise to be added to <code class="docutils literal notranslate"><span class="pre">y_val</span></code> during validation. Default is False.</p>
+</dd>
+<dt class="field-odd">wobbler_val</dt>
+<dd class="field-odd"><p>User can provide custom noise to be added to <code class="docutils literal notranslate"><span class="pre">y_val</span></code>. Disabled per default.</p>
+</dd>
+<dt class="field-even">train_only</dt>
+<dd class="field-even"><p>Set to True to perform a training session only, i.e. no validation is done.</p>
+</dd>
+<dt class="field-odd">verbose</dt>
+<dd class="field-odd"><p>Mute the training error messages.</p>
 </dd>
 </dl>
 </dd>
@@ -94,7 +425,11 @@
 <h3>Navigation</h3>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">ESN</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#esn-init">ESN.__init__</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-scale-reservoir-weights">ESN.scale_reservoir_weights</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-excite">ESN.excite</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-reg-fit">ESN.reg_fit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-validate">ESN.validate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-session">ESN.session</a></li>
 </ul>
 </li>
 </ul>
