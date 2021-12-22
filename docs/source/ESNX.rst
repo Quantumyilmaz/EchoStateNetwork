@@ -14,7 +14,7 @@ Echo State Network X
 ESN for multitasking such as when using (mini)batches. Will `set the reservoir layer mode`_ to ``batch``.
 
 
-    .. class:: ESNX(self,  \
+    .. class:: ESNX(  \
                 batch_size: int, \
                 W: np.ndarray = None,  \
                 resSize: int = 450,  \
