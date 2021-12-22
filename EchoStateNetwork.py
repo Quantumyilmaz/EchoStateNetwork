@@ -1055,7 +1055,7 @@ class ESN:
                 else:
                     self.__setattr__(attr_name,attr.copy())
     
-    def copy_connections_from(self,reservoir,bind=False,weights_list=None):
+    def copy_connections_from(self,reservoir,bind=False,weights_list=None) -> NoneType:
         assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
 
         if weights_list is None:
@@ -1073,7 +1073,7 @@ class ESN:
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
     
-    def cpu(self):
+    def cpu(self) -> NoneType:
         for val in self.__dict__.values():
             if hasattr(val,'cpu'):
                 val = val.cpu()
