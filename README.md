@@ -26,6 +26,6 @@ Download EchoStateNetwork.py and place it, where you want to import it from.
 
 - Gradient Based Optimization
   * Use [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to make the reservoir computer compatible with PyTorch. 
-  * It is possible to use PyTorch with the rest of the reservoir types ([ESN](https://echostatenetwork.readthedocs.io/en/latest/ESN.html), [ESNX](https://echostatenetwork.readthedocs.io/en/latest/ESNX.html), [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html), [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html)) as well without the usage of gradients but regression. 
+  * It is possible to use PyTorch with the rest of the reservoir objects ([ESN](https://echostatenetwork.readthedocs.io/en/latest/ESN.html), [ESNX](https://echostatenetwork.readthedocs.io/en/latest/ESNX.html), [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html), [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html)) as well without the usage of gradients but regression. 
   * [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) and [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html) work with PyTorch only whereas the other reservoir objects also work with Numpy. 
     
