@@ -1,4 +1,4 @@
-# EchoStateNetwork
+# [EchoStateNetwork](https://echostatenetwork.readthedocs.io/)
 A python framework for Echo State Network applications.
 
 ## Current capabilities
