@@ -18,7 +18,7 @@ ESN
 Echo State Network
 
 
-    .. class:: ESN(self, \
+    .. class:: ESN( \
                             W: np.ndarray=None, \
                             resSize: int=400, \
                             xn: list=[0,4,-4], \
@@ -63,7 +63,7 @@ ESN.scale_reservoir_weights
 Scales the reservoir connection matrix to have certain spectral norm or radius.
 
 
-    .. function:: scale_reservoir_weights(self,desired_scaling: float, reference='ev') -> None
+    .. method:: scale_reservoir_weights(desired_scaling: float, reference='ev') -> None
 
 
     |
@@ -89,7 +89,7 @@ This formula is for when both ``u`` and ``y`` are provided.
 
 After initial transient, updated `x` are registered at each iteration and can be called via ``reg_X`` attribute.
 
-    .. function:: excite(self,  \
+    .. method:: excite(  \
                     u: np.ndarray=None,  \
                     y: np.ndarray=None,  \
                     bias: Union[int,float]=None,  \
@@ -136,7 +136,7 @@ ESN.reg_fit
 Does a regression to ``y`` using the registered reservoir updates, which can be obtained from attribute ``reg_X``:
 `W^{*} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2`
 
-    .. function:: reg_fit(self, \
+    .. method:: reg_fit( \
                     y: np.ndarray, \
                     f_out_inverse=None, \
                     regr=None, \
@@ -177,7 +177,7 @@ ESN.validate
 
 Returns forecast.
 
-    .. function:: validate(self, \
+    .. method:: validate( \
                     u: np.ndarray=None, \
                     y: np.ndarray=None, \
                     valLen: int=None, \
@@ -218,7 +218,7 @@ ESN.session
 
 Executes a whole training/validation session by calling the methods ``excite``, ``train`` and ``validate``. Returns the forecasts.
 
-    .. function:: session(self, \
+    .. method:: session( \
                             X_t: np.ndarray=None, \
                             y_t: np.ndarray=None, \
                             X_v: np.ndarray=None, \
@@ -297,7 +297,7 @@ This formula is for when both ``u`` and ``y`` are provided.
 
 \ \
 
-    .. function::   update_reservoir_layer(self, \
+    .. method::   update_reservoir_layer( \
                     in_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
                     ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
                     ,leak_version:int = 0  \
@@ -342,7 +342,7 @@ When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer 
 
 \ \
 
-    .. function:: update_reservoir_layers_serially(self \
+    .. method:: update_reservoir_layers_serially(self \
         , in_: Union[np.ndarray, torch.Tensor, NoneType] = None \
         , out_: Union[np.ndarray, torch.Tensor, NoneType] = None \
         , leak_version: int = 0 \
@@ -369,7 +369,7 @@ ESN.reset_reservoir_layer
 
 Resets reservoir layer, i.e. sets the reservoir nodes back to their initial state.
 
-    .. function:: reset_reservoir_layer(self) -> None
+    .. method:: reset_reservoir_layer(self) -> None
 
 ----------------------------
 ESN.set_reservoir_layer_mode
@@ -385,7 +385,7 @@ Sets the reservoir mode to ``single``, ``batch`` or ``ensemble``. Changes the sh
   
   \ \
 
-    .. function:: set_reservoir_layer_mode(self,mode: str,batch_size: int=None,no_of_reservoirs :int=None) -> None
+    .. method:: set_reservoir_layer_mode(mode: str,batch_size: int=None,no_of_reservoirs :int=None) -> None
 
     **Parameters**
 
@@ -400,7 +400,7 @@ ESN.copy_from
 
 Copies the reservoir properties to the current reservoir.
 
-    .. function:: copy_from(self,reservoir,bind=False) -> None
+    .. method:: copy_from(reservoir,bind=False) -> None
 
     **Parameters**
 
@@ -414,7 +414,7 @@ ESN.copy_connections_from
 
 Similar to `ESN.copy_from`_ but copies only the connection matrices.
 
-    .. function:: copy_connections_from(self,reservoir,bind=False,weights_list=None) -> None
+    .. method:: copy_connections_from(reservoir,bind=False,weights_list=None) -> None
 
     **Parameters**
 
@@ -430,7 +430,7 @@ ESN.cpu
 
 Sends the reservoir to cpu device.
 
-    .. function:: cpu(self) -> None
+    .. method:: cpu(self) -> None
 
 
 --------
@@ -439,7 +439,7 @@ ESN.save
 
 Pickles the reservoir to the provided path. Save path example: ``./saved_reservoir.pkl``
 
-    .. function:: save(self,save_path:str) -> None
+    .. method:: save(save_path:str) -> None
 
     **Parameters**
 
@@ -451,7 +451,7 @@ ESN.load
 
 Loads the reservoir from the provided path. Load path example: ``./saved_reservoir.pkl``
 
-    .. function:: load(self,load_path:str) -> None
+    .. method:: load(load_path:str) -> None
 
     **Parameters**
 
