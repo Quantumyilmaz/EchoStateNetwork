@@ -6,15 +6,9 @@
 ESN
 ===
 
-|
-
-------------
-ESN.__init__
-------------
-
 Initializes reservoir computer.
 
-.. function:: __init__(self, \
+.. class:: ESN(self, \
                         W: np.ndarray=None, \
                         resSize: int=400, \
                         xn: list=[0,4,-4], \
