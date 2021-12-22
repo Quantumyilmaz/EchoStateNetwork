@@ -52,7 +52,7 @@ Echo State Network
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``Win`` , Wout , Wback: User can provide custom input, output, feedback matrices.
+        :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
 
 
