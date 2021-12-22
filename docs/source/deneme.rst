@@ -1,5 +1,0 @@
-
-
-Supervised Learning
-===================
-    asd

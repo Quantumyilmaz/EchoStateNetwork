@@ -136,13 +136,13 @@ class ESN:
                 random_state: float=None,
                 null_state_init: bool=True,
                 custom_initState: np.ndarray=None,
-                **kwargs):
+                **kwargs) -> NoneType:
         
         """ 
 
         Description
         -
-        Generates the reservoir matrix: Initializes the units and their connections.
+        Initialize reservoir computer.
 
         Variables
         -
@@ -156,13 +156,13 @@ class ESN:
 
             - random_state: Fix random state.
 
-            - null_state_init: If True, starts the reservoir from null state. If False, starts them randomly. Default is True.
+            - null_state_init: If True, starts the reservoir from null state. If False, initializes randomly. Default is True.
 
             - custom_initState: User can give custom initial reservoir state x(0).
 
             - keyword agruments:
                 
-                - verbose: Mute all message outputs.
+                - verbose: Mute the initialization message.
                 - f: User can provide custom activation function of the reservoir. It will be the fixed activation function of the reservoir. It can also be defined in training if not here.
                 - leak_rate: Leak parameter in Leaky Integrator ESN (LiESN).
                 - leak_version: Give 0 for Jaeger's recursion formula, give 1 for recursion formula in ESNRLS paper.
@@ -238,7 +238,7 @@ class ESN:
         self.batch_size = None
 
 
-    def scale_reservoir_weights(self,desired_scaling: float, reference='ev'):
+    def scale_reservoir_weights(self,desired_scaling: float, reference='ev') -> NoneType:
 
         """ 
         Description
@@ -274,12 +274,12 @@ class ESN:
                 bias: Union[int,float]=None,
                 f: Union[str,Any]=None,
                 leak_rate: Union[int,float]=None,
+                leak_version: int=0,
                 initLen: int=None, 
                 trainLen: int=None,
                 initTrainLen_ratio: float=None,
                 wobble: bool=False,
                 wobbler: np.ndarray=None,
-                leak_version=0,
                 **kwargs) -> NoneType:
         """
 
@@ -658,7 +658,7 @@ class ESN:
 
         y: to be predicted
 
-        - valLen:  Training length. If u or y is provided it is not needed to be set. Mostly necessary for when neither u nor y is present.
+        - valLen: Validation length. If u or y is provided it is not needed to be set. Mostly necessary for when neither u nor y is present.
 
         - f_out: Custom output activation. Default is identity.
 

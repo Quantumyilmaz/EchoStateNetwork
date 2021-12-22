@@ -7,14 +7,14 @@ Welcome to EchoStateNetwork's documentation!
 ============================================
 
 .. toctree::
-   deneme.rst
-   :maxdepth: 2
-   :caption: Contents:
+   ESN.rst
 
 
-Indices and tables
-==================
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+
+.. Indices and tables
+.. ==================
+
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`
