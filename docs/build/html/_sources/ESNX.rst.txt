@@ -34,7 +34,7 @@ ESN for multitasking such as when using (mini)batches. Will `set the reservoir l
         :``batch_size``: Specify the batch size.
         :``W``: User can provide custom reservoir matrix.
         :``resSize``: Number of units (nodes) in the reservoir.
-        :``xn`` , pn: User can provide custom random variable to control the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities.
+        :``xn`` , ``pn``: User can provide custom random variable to control the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities.
         :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
@@ -49,5 +49,5 @@ ESN for multitasking such as when using (mini)batches. Will `set the reservoir l
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``Win`` , Wout , Wback: User can provide custom input, output, feedback matrices.
+        :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
