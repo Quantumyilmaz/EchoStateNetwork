@@ -8,6 +8,7 @@ Welcome to EchoStateNetwork's documentation!
 
 .. toctree::
    ESN.rst
+   ESNX.rst
 
 
 

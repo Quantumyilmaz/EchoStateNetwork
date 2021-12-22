@@ -318,6 +318,7 @@ class ESN:
 
                 - Win: custom input weights
                 - Wback: custom feedback weights
+                - validation_mode: You can use this method in validation mode after calling this method to prepare the reservoir for validation.
         """
 
         # Some stuff needs checking right out the bat.
@@ -920,11 +921,11 @@ class ESN:
         pass
 
     def update_reservoir_layer(
-        self,in_:Union[np.ndarray,torch.tensor,NoneType]=None
-        ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
+        self,in_:Union[np.ndarray,torch.Tensor,NoneType]=None
+        ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None
         ,leak_version:int = 0
         ,leak_rate=1.
-        ,mode:Optional[str]=None):
+        ,mode:Optional[str]=None) -> NoneType:
         """
         - in_: input array
         - out_: output array
@@ -940,12 +941,12 @@ class ESN:
         self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_,leak_version=leak_version_,leak_rate=leak_rate_)
 
     def update_reservoir_layers_serially(self
-        , in_: Union[np.ndarray, torch.tensor, NoneType] = None
-        , out_: Union[np.ndarray, torch.tensor, NoneType] = None
+        , in_: Union[np.ndarray, torch.Tensor, NoneType] = None
+        , out_: Union[np.ndarray, torch.Tensor, NoneType] = None
         , leak_version: int = 0
         , leak_rate=1   
         , mode: Optional[str] = None
-        ,init_size: int = 0):
+        ,init_size: int = 0) -> NoneType:
 
         """
         WARNING: RESETS RESERVOIR LAYERS!
@@ -964,11 +965,13 @@ class ESN:
 
         batch_size = self.batch_size
 
+        # TODO: Make it work for randomly initialized non-null reservoir initial state.
 
         if layer_mode == 'batch':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
             res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.resSize,self.batch_size+init_size))))  #(resSize,batch_size)
 
+        # TODO: Make it work for randomly initialized non-null reservoir initial state.
         elif self._layer_mode == 'ensemble':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
             res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self.resSize,self.batch_size+init_size))))  #(no_of_reservoirs,resSize,batch_size)
@@ -998,7 +1001,7 @@ class ESN:
 
         self.reservoir_layer = res_layer_temp[...,init_size:]
 
-    def reset_reservoir_layer(self):
+    def reset_reservoir_layer(self) -> NoneType:
         if self._mm == np.dot:
             self.reservoir_layer = self._reservoir_layer_init.copy()
         else:
@@ -1040,30 +1043,7 @@ class ESN:
         else:
             raise Exception(f"Current reservoir mode is already '{self._layer_mode}'.")
 
-    def save(self,save_path:str):
-        """
-        Save path example: ./saved_reservoir.pkl
-        """
-        vals = [val if not hasattr(val,'cpu') else val.cpu() for val in self.__dict__.values()]
-        temp = pd.Series(vals,index=self.__dict__.keys())
-        temp['__class__'] = self.__class__ # str(self.__class__)[:-2].split('.')[-1]
-        temp.to_pickle(save_path)
-        save_file_name = save_path.split("/")[-1]
-        save_loc = "/".join(save_path.split("/")[:-1]) + "/"
-        print(f"{save_file_name} saved to {save_loc}.")
-    
-    def load(self,load_path:str):
-        """
-        Load path example: ./reservoir_to_be_loaded.pkl
-        """
-        temp = pd.read_pickle(load_path)
-        if not isinstance(self,temp['__class__']):
-            warnings.warn(f"Loading from {temp.pop('__class__')} to {self.__class__}.")
-        for attr_name,attr in temp.items():
-            self.__setattr__(attr_name,attr)
-        print(f"Model loaded from {load_path}.")
-
-    def copy_from(self,reservoir,bind=False):
+    def copy_from(self,reservoir,bind=False) -> NoneType:
         assert isinstance(reservoir,self.__class__)
         # assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
         for attr_name,attr in reservoir.__dict__.items():
@@ -1097,6 +1077,29 @@ class ESN:
         for val in self.__dict__.values():
             if hasattr(val,'cpu'):
                 val = val.cpu()
+    
+    def save(self,save_path:str) -> NoneType:
+        """
+        Save path example: ./saved_reservoir.pkl
+        """
+        vals = [val if not hasattr(val,'cpu') else val.cpu() for val in self.__dict__.values()]
+        temp = pd.Series(vals,index=self.__dict__.keys())
+        temp['__class__'] = self.__class__ # str(self.__class__)[:-2].split('.')[-1]
+        temp.to_pickle(save_path)
+        save_file_name = save_path.split("/")[-1]
+        save_loc = "/".join(save_path.split("/")[:-1]) + "/"
+        print(f"{save_file_name} saved to {save_loc}.")
+    
+    def load(self,load_path:str) -> NoneType:
+        """
+        Load path example: ./saved_reservoir.pkl
+        """
+        temp = pd.read_pickle(load_path)
+        if not isinstance(self,temp['__class__']):
+            warnings.warn(f"Loading from {temp.pop('__class__')} to {self.__class__}.")
+        for attr_name,attr in temp.items():
+            self.__setattr__(attr_name,attr)
+        print(f"Model loaded from {load_path}.")
 
     def _get_spectral_radius(self):
         if self._os == 'numpy':
