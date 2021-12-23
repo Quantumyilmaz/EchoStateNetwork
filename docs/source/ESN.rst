@@ -21,7 +21,7 @@ Echo State Network
     .. class:: ESN( \
                             W: np.ndarray=None, \
                             resSize: int=400, \
-                            xn: list=[0,4,-4], \
+                            xn: list=[0,0.4,-0.4], \
                             pn: list=[0.9875, 0.00625, 0.00625], \
                             random_state: float=None, \
                             null_state_init: bool=True, \

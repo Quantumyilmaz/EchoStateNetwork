@@ -3,7 +3,7 @@
 #Title: Echo State Network framework
 
 import numpy as np
-from scipy import linalg,stats
+from scipy import linalg
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
 from typing import Any, Optional, Union
@@ -131,7 +131,7 @@ class ESN:
     def __init__(self,
                 W: np.ndarray=None,
                 resSize: int=400,
-                xn: list=[0,4,-4], #this is not a mistake. we multiply with 0.1 later on to get 0.4 and -0.4
+                xn: list=[0,0.4,-0.4],
                 pn: list=[0.9875, 0.00625, 0.00625],
                 random_state: float=None,
                 null_state_init: bool=True,
@@ -192,10 +192,8 @@ class ESN:
             self._core_nodes = custom_initState.copy()
             self.reservoir_layer = self._core_nodes # self._core_nodes never gets changed
 
-        self.W = 0.1 * stats.rv_discrete(name='sparse', \
-                        values=(xn, pn)).rvs(size=(resSize,resSize) \
-                                ,random_state=random_state) if W is None else W
         
+        self.W = np.random.choice(xn, p=pn,size=(450,450)) if W is None else W
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
@@ -1110,7 +1108,12 @@ class ESN:
             raise Exception("Something is terribly wrong.")
 
     def _get_spectral_norm(self):
-        return torch.linalg.svdvals(self.W).max().item()
+        if self._os == 'numpy':
+            return np.linalg.svd(self.W,compute_uv=False).max()
+        elif self._os == 'torch':
+            return torch.linalg.svdvals(self.W).max().item()
+        else:
+            raise Exception("Something is terribly wrong.")
 
     def _get_update(self
                     ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
