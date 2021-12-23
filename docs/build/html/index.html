@@ -34,6 +34,47 @@
             
   <section id="welcome-to-echostatenetwork-s-documentation">
 <h1>Welcome to EchoStateNetwork’s documentation!<a class="headerlink" href="#welcome-to-echostatenetwork-s-documentation" title="Permalink to this headline">¶</a></h1>
+<section class="tex2jax_ignore mathjax_ignore" id="echostatenetwork">
+<h2><a class="reference external" href="https://echostatenetwork.readthedocs.io/">EchoStateNetwork</a><a class="headerlink" href="#echostatenetwork" title="Permalink to this headline">¶</a></h2>
+<p>A python framework for Echo State Network applications.</p>
+<section id="documentation">
+<h3>Documentation<a class="headerlink" href="#documentation" title="Permalink to this headline">¶</a></h3>
+<p>The documentation can be found <a class="reference external" href="https://echostatenetwork.readthedocs.io/">here</a>.</p>
+</section>
+<section id="installation">
+<h3>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h3>
+<p><a class="reference external" href="https://github.com/Quantumyilmaz/EchoStateNetwork">Download EchoStateNetwork.py</a> and place it, where you want to import it from.</p>
+</section>
+<section id="current-capabilities">
+<h3>Current capabilities<a class="headerlink" href="#current-capabilities" title="Permalink to this headline">¶</a></h3>
+<ul>
+<li><p>Supervised Learning</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-excite"><code class="docutils literal notranslate"><span class="pre">excite</span></code></a>, <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-reg-fit"><code class="docutils literal notranslate"><span class="pre">reg_fit</span></code></a> and <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-validate"><code class="docutils literal notranslate"><span class="pre">validate</span></code></a> can be used in combination to complete supervised learning tasks.</p></li>
+<li><p>Another easier way to execute a supervised learning job is to call <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-session"><code class="docutils literal notranslate"><span class="pre">session</span></code></a> method, where one passes all training and validation data at once as arguments.</p></li>
+</ul>
+</li>
+<li><p>Reinforcement Learning</p>
+<ul class="simple">
+<li><p>Examples of PPO and DQN algorithms will be provided soon.</p></li>
+</ul>
+</li>
+<li><p>Learning with Batches</p>
+<p>Use <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNX.html">ESNX</a>, <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNS.html">ESNS</a> or <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNN.html">ESNN</a> to enable minibatching.</p>
+</li>
+<li><p>Learning in Parallel</p>
+<p>Use <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNS.html">ESNS</a> or <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNN.html">ESNN</a> to learn with an ensemble of Echo State Networks and if desired minibatching. This is useful when using vectorized environments in reinforcement learning applications.</p>
+</li>
+<li><p>Gradient Based Optimization</p>
+<ul class="simple">
+<li><p>Use <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNN.html">ESNN</a> to make the reservoir computer compatible with PyTorch.</p></li>
+<li><p>It is possible to use PyTorch with the rest of the reservoir objects (<a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html">ESN</a>, <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNX.html">ESNX</a>, <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNS.html">ESNS</a>, <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNN.html">ESNN</a>) as well without the usage of gradients but regression.</p></li>
+<li><p><a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNN.html">ESNN</a> and <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESNS.html">ESNS</a> work with PyTorch only whereas the other reservoir objects also work with Numpy.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="ESN.html">ESN</a><ul>

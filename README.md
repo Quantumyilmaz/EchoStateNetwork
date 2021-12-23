@@ -6,12 +6,12 @@ A python framework for Echo State Network applications.
 The documentation can be found [here](https://echostatenetwork.readthedocs.io/).
 
 ## Installation
-Download EchoStateNetwork.py and place it, where you want to import it from.
+[Download EchoStateNetwork.py](https://github.com/Quantumyilmaz/EchoStateNetwork) and place it, where you want to import it from.
 
 ## Current capabilities
 - Supervised Learning
-  * ``excite``, ``reg_fit`` and ``validate`` can be used in combination to complete supervised learning tasks.
-  * Another easier way to execute a supervised learning job is to call ``session`` method, where one passes all training and validation data at once as arguments.
+  * [``excite``](https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-excite), [``reg_fit``](https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-reg-fit) and [``validate``](https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-validate) can be used in combination to complete supervised learning tasks.
+  * Another easier way to execute a supervised learning job is to call [``session``](https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-session) method, where one passes all training and validation data at once as arguments.
   
 - Reinforcement Learning
   * Examples of PPO and DQN algorithms will be provided soon.
