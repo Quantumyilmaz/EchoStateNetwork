@@ -15,7 +15,7 @@ ESNN
 
 Echo State Network N
 
-Echo State Network using Pytorch's `Module class`_. `W_{out}` is a `Linear layer`_ and can be trained via gradients.
+Echo State Network using Pytorch's `Module class`_. `\textbf W_{out}` is a `Linear layer`_ and can be trained via gradients.
 
 It will `set the reservoir layer mode`_ to 
 
