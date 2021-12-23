@@ -21,15 +21,12 @@ Echo State Network
     .. class:: ESN( \
                             W: np.ndarray=None, \
                             resSize: int=400, \
-                            xn: list=[0,4,-4], \
+                            xn: list=[0,0.4,-0.4], \
                             pn: list=[0.9875, 0.00625, 0.00625], \
                             random_state: float=None, \
                             null_state_init: bool=True, \
                             custom_initState: np.ndarray=None, \
-                            **kwargs) 
-
-
-    |
+                            **kwargs)
 
 
     **Parameters**
@@ -41,8 +38,6 @@ Echo State Network
         :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
-
-    |
 
 
     **Keyword Arguments**
@@ -66,8 +61,6 @@ Scales the reservoir connection matrix to have certain spectral norm or radius.
     .. method:: scale_reservoir_weights(desired_scaling: float, reference='ev') -> None
 
 
-    |
-
     **Parameters**
 
         :``desired_scaling``: Scales the reservoir matrix to have the desired spectral norm or radius.
@@ -80,7 +73,8 @@ ESN.excite
 
 Time series data is used to update the reservoir nodes according to the formula:
 
-`x(n+1) = (1-\alpha) \cdot x(n) + \alpha \cdot f(W_{in} \cdot u(n+1) + W \cdot x(n) + Wback \cdot y(n))`
+`x_{n+1} = (1-\alpha) \cdot x_n + \alpha \cdot f(\textbf W_{in} \cdot u_{n+1} + \textbf W \cdot x_n + \textbf W_{back} \cdot y_n)`
+
 
 , where `x` are the reservoir nodes, `u` inputs, `y` labels, `\alpha` leaking rate, `f` activation function.
 This formula is for when both ``u`` and ``y`` are provided.
@@ -103,7 +97,6 @@ After initial transient, updated `x` are registered at each iteration and can be
                     leak_version: int =0,  \
                     **kwargs) -> None
 
-    |
 
     **Parameters**
 
@@ -119,7 +112,6 @@ After initial transient, updated `x` are registered at each iteration and can be
         :``wobble``: For enabling noise to be added to ``y``.
         :``wobbler``: User can provide custom noise. Default is ``np.random.uniform(-1,1)/10000``.
 
-    |
 
     **Keyword Arguments**
                     
@@ -134,7 +126,7 @@ ESN.reg_fit
 -----------
 
 Does a regression to ``y`` using the registered reservoir updates, which can be obtained from attribute ``reg_X``:
-`W^{*} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2`
+`\text W_{out} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2`
 
     .. method:: reg_fit( \
                     y: np.ndarray, \
@@ -145,8 +137,6 @@ Does a regression to ``y`` using the registered reservoir updates, which can be 
                     solver: str="auto", \
                     error_measure: str="mse", \
                     **kwargs) -> np.ndarray
-
-    |
 
     **Parameters**
 
@@ -185,7 +175,6 @@ Returns forecast.
                     output_transformer=lambda x:x, \
                     **kwargs) -> np.ndarray
 
-    |
 
     **Parameters**
 
@@ -208,7 +197,6 @@ Returns forecast.
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN). Default is the ``leak_rate`` used in training.
         :``wobble``: For enabling random noise. Default is False.
         :``wobbler``: User can provide custom noise. Disabled per default.
-
 
 
 
@@ -245,7 +233,6 @@ Executes a whole training/validation session by calling the methods ``excite``, 
                             **kwargs \
                             ) -> np.ndarray
 
-    |
 
     **Parameters**
 
@@ -289,7 +276,7 @@ ESN.update_reservoir_layer
 --------------------------
 
 Applies one-step update to the reservoir layer using:
-`x_{n+1} = (1-\alpha) \cdot x_n + \alpha \cdot f(W_{in} \cdot u_{n+1} + W \cdot x_n + Wback \cdot y_n)`
+`x_{n+1} = (1-\alpha) \cdot x_n + \alpha \cdot f(\textbf W_{in} \cdot u_{n+1} + \textbf W \cdot x_n + \textbf W_{back} \cdot y_n)`
 , where `x` are the reservoir nodes, `u` inputs, `y` labels, `\alpha` leaking rate, `f` activation function.
 This formula is for when both ``u`` and ``y`` are provided.
 
@@ -305,8 +292,6 @@ This formula is for when both ``u`` and ``y`` are provided.
                     ,mode:Optional[str]=None) -> None
 
 
-
-    |
 
     **Parameters**
 
@@ -324,9 +309,9 @@ ESN.update_reservoir_layers_serially
 .. warning:: Resets reservoir layer. See `ESN.reset_reservoir_layer`_.
 
 When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer will  be updated using
-`x^k = (1-\alpha)x^{k-1} + f(W_{in}\cdot u^{k-1} + W \cdot x^{k-1})` \
+`x^k = (1-\alpha)x^{k-1} + f(\textbf W_{in} \cdot u^{k-1} + \textbf W \cdot x^{k-1})` \
 , where `1\leq k \leq` the batch size, `u^k` the `k^{th}` data point in the batch and `x^1` is the initial reservoir layer before any updates. \
-`x^1` is updated according to `x^1 = (1-\alpha)x^1 + f(W_{in}\cdot u^1 + W \cdot x^1)`.
+`x^1` is updated according to `x^1 = (1-\alpha)x^1 + f(\textbf W_{in}\cdot u^1 + \textbf W \cdot x^1)`.
 
 `x` here is a matrix with shape:
 
@@ -377,7 +362,8 @@ ESN.set_reservoir_layer_mode
 
 .. warning:: Resets reservoir layer. See `ESN.reset_reservoir_layer`_.
 
-Sets the reservoir mode to ``single``, ``batch`` or ``ensemble``. Changes the shape of the reservoir layer, which can be obtained from ``reservoir_layer`` attribute.
+Sets the reservoir mode to ``single``, ``batch`` or ``ensemble`` by expanding or collapsing the reservoir layer (see shapes below).
+Changes the shape of the reservoir layer, which can be obtained from ``reservoir_layer`` attribute.
 
     - ``single``: reservoir layer has shape (reservoir size,1)
     - ``batch``: reservoir layer has shape (reservoir size,batch size)

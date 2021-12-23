@@ -11,22 +11,19 @@ ESNX
 
 Echo State Network X
 
-ESN for multitasking such as when using (mini)batches. Will `set the reservoir layer mode`_ to ``batch``.
+ESN for multitasking such as when using (mini)batches. It will `set the reservoir layer mode`_ to ``batch``.
 
 
     .. class:: ESNX(  \
                 batch_size: int, \
                 W: np.ndarray = None,  \
                 resSize: int = 450,  \
-                xn: list = [0, 4, -4],  \
+                xn: list = [0,0.4,-0.4],  \
                 pn: list = [0.9875, 0.00625, 0.00625],  \
                 random_state: float = None,  \
                 null_state_init: bool = True, \
                 custom_initState: np.ndarray = None, \
                 **kwargs)
-
-
-    |
 
 
     **Parameters**
@@ -38,9 +35,6 @@ ESN for multitasking such as when using (mini)batches. Will `set the reservoir l
         :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
-
-    |
-
 
     **Keyword Arguments**
             

@@ -16,6 +16,7 @@
     <script src="_static/doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ESNS" href="ESNS.html" />
     <link rel="prev" title="ESN" href="ESN.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -36,16 +37,13 @@
   <section id="esnx">
 <h1>ESNX<a class="headerlink" href="#esnx" title="Permalink to this headline">¶</a></h1>
 <p>Echo State Network X</p>
-<p>ESN for multitasking such as when using (mini)batches. Will <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-set-reservoir-layer-mode">set the reservoir layer mode</a> to <code class="docutils literal notranslate"><span class="pre">batch</span></code>.</p>
+<p>ESN for multitasking such as when using (mini)batches. It will <a class="reference external" href="https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-set-reservoir-layer-mode">set the reservoir layer mode</a> to <code class="docutils literal notranslate"><span class="pre">batch</span></code>.</p>
 <blockquote>
 <div><dl class="py class">
 <dt class="sig sig-object py" id="ESNX">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ESNX</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resSize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">450</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0,</span> <span class="pre">4,</span> <span class="pre">-</span> <span class="pre">4]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0.9875,</span> <span class="pre">0.00625,</span> <span class="pre">0.00625]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_state_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_initState</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ESNX" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ESNX</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">W</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resSize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">450</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0,</span> <span class="pre">0.4,</span> <span class="pre">-</span> <span class="pre">0.4]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[0.9875,</span> <span class="pre">0.00625,</span> <span class="pre">0.00625]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">null_state_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_initState</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">np.ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ESNX" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<div class="line-block">
-<div class="line"><br /></div>
-</div>
 <p><strong>Parameters</strong></p>
 <blockquote>
 <div><dl class="field-list simple">
@@ -72,9 +70,6 @@
 </dd>
 </dl>
 </div></blockquote>
-<div class="line-block">
-<div class="line"><br /></div>
-</div>
 <p><strong>Keyword Arguments</strong></p>
 <blockquote>
 <div><dl class="field-list simple">
@@ -124,6 +119,8 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="ESN.html">ESN</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">ESNX</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ESNS.html">ESNS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ESNN.html">ESNN</a></li>
 </ul>
 
 <div class="relations">
@@ -131,6 +128,7 @@
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
       <li>Previous: <a href="ESN.html" title="previous chapter">ESN</a></li>
+      <li>Next: <a href="ESNS.html" title="next chapter">ESNS</a></li>
   </ul></li>
 </ul>
 </div>

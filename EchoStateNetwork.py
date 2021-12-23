@@ -73,6 +73,7 @@ def is_normal(x):
 class ESN:
 
     # TODO: Add bias to every layer?
+    # TODO: Adjustable dtype?
 
     """
     DOCUMENTATION
@@ -1474,7 +1475,7 @@ class ESNX(ESN):
                 batch_size: int,
                 W: np.ndarray = None, 
                 resSize: int = 450, 
-                xn: list = [0, 4, -4], 
+                xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
                 random_state: float = None, 
                 null_state_init: bool = True,
@@ -1517,7 +1518,7 @@ class ESNS(ESN):
                 bias: int,
                 W: np.ndarray = None, 
                 resSize: int = 450, 
-                xn: list = [0, 4, -4], 
+                xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
                 random_state: float = None, 
                 null_state_init: bool = True,
@@ -1553,6 +1554,9 @@ class ESNS(ESN):
 
 
 class ESNN(ESN,torch.nn.Module):
+
+    # TODO: Add output feedback support to forward.
+
     """
     EchoStateNetwork N
 
@@ -1568,7 +1572,7 @@ class ESNN(ESN,torch.nn.Module):
                 no_of_reservoirs: int=None,
                 W: np.ndarray = None, 
                 resSize: int = 450,
-                xn: list = [0, 4, -4],
+                xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
                 random_state: float = None, 
                 null_state_init: bool = True,
@@ -1612,7 +1616,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             return torch.matmul(a,b)
 
-    def forward(self,x):
+    def forward(self,x:torch.Tensor):
         with torch.no_grad():
             self.update_reservoir_layer(x.transpose(-2,-1))
         return self.__call__(x)

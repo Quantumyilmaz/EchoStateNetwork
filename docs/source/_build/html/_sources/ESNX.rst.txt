@@ -26,9 +26,6 @@ ESN for multitasking such as when using (mini)batches. It will `set the reservoi
                 **kwargs)
 
 
-    |
-
-
     **Parameters**
 
         :``batch_size``: Specify the batch size.
@@ -38,9 +35,6 @@ ESN for multitasking such as when using (mini)batches. It will `set the reservoi
         :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
-
-    |
-
 
     **Keyword Arguments**
             
