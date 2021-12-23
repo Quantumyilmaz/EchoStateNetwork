@@ -18,11 +18,11 @@ The documentation can be found [here](https://echostatenetwork.readthedocs.io/).
 
 - Learning with Batches
 
-  Use [ESNX](https://echostatenetwork.readthedocs.io/en/latest/ESNX.html), [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html) or [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to enable minibatching.
+  Use [ESNX](https://echostatenetwork.readthedocs.io/en/latest/ESNX.html), [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html) or [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to enable (mini)batching.
 
 - Learning in Parallel
 
-  Use [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html) or [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to learn with an ensemble of Echo State Networks and if desired minibatching. This is useful when using vectorized environments in reinforcement learning applications.
+  Use [ESNS](https://echostatenetwork.readthedocs.io/en/latest/ESNS.html) or [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to learn with an ensemble of Echo State Networks and (mini)batching. This is useful when using vectorized environments in reinforcement learning applications.
 
 - Gradient Based Optimization
   * Use [ESNN](https://echostatenetwork.readthedocs.io/en/latest/ESNN.html) to make the reservoir computer compatible with PyTorch. 
