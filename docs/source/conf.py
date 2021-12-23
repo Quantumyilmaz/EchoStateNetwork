@@ -55,5 +55,6 @@ html_static_path = ['_static']
 html_css_files = []
 
 html_theme_options = {
-    'page_width': '100%',
+    'page_width': '80%',
+    'sidebar_width':'20%'
 }
