@@ -1,6 +1,8 @@
-#Author: Ahmet Ege Yilmaz
-#Year: 2021
-#Title: Echo State Network framework
+# Author: Ahmet Ege Yilmaz
+# Year: 2021
+# Title: Echo State Network framework
+
+# Documentation: https://echostatenetwork.readthedocs.io/
 
 import numpy as np
 from scipy import linalg
