@@ -8,7 +8,7 @@
 .. _Linear layer: https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
 .. _the expanded reservoir layer: https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-set-reservoir-layer-mode
 .. _Updates reservoir layer.: https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-update-reservoir-layer
-.. _ESN: https://echostatenetwork.readthedocs.io/
+.. _ESN: https://echostatenetwork.readthedocs.io/en/latest/ESN.html
 
 ====
 ESNN
