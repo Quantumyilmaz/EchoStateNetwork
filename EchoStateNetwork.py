@@ -1,4 +1,4 @@
-#Author: Ege Yilmaz
+#Author: Ahmet Ege Yilmaz
 #Year: 2021
 #Title: Echo State Network framework
 
