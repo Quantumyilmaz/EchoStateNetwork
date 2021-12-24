@@ -4,6 +4,7 @@
 .. _Jaeger's recursion formula: https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'
 .. _ESNRLS paper: https://ieeexplore.ieee.org/document/9458984
 .. _set the reservoir layer mode: https://echostatenetwork.readthedocs.io/en/latest/ESN.html#esn-set-reservoir-layer-mode
+.. _ESN: https://echostatenetwork.readthedocs.io/
 
 ====
 ESNX
@@ -13,6 +14,9 @@ Echo State Network X
 
 ESN for multitasking such as when using (mini)batches. It will `set the reservoir layer mode`_ to ``batch``.
 
+.. Note:: ESNX_ inherits all methods from `ESN`_.
+
+\ \
 
     .. class:: ESNX(  \
                 batch_size: int, \
