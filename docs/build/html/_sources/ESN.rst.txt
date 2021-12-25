@@ -6,6 +6,7 @@
 .. _Jaeger's recursion formula: https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'
 .. _ESNRLS paper: https://ieeexplore.ieee.org/document/9458984
 .. _scikit documentation: https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html?highlight=ridge#sklearn.linear_model.Ridge
+.. _See: https://echostatenetwork.readthedocs.io/en/latest/ESN.html#ESN
 .. _ESNX: ENSX.rst
 .. _ESNS: ENSS.rst
 .. _ESNN: ENSN.rst
@@ -112,7 +113,7 @@ After initial transient, updated `x` are registered at each iteration and can be
         :``u``: Input. Has shape [...,time].
         :``y``: To be forecast. Has shape [...,time].
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``f``: User can provide custom activation function. Default is None. Available activations: ``'tanh'``, ``'relu'``, ``'sigmoid'``. For leaky relu activation, write ``'leaky_{leaky rate}'``, e.g. ``'leaky_0.5'``.
+        :``f``: User can provide custom activation function. Default is None. `See`_ for accepted activations.
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``initLen``: Number of timesteps to be taken as initial transient tolarance. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.
