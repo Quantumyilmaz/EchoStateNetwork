@@ -63,7 +63,16 @@ It will `set the reservoir layer mode`_ to
     **Keyword Arguments**
             
         :``verbose``: Mute the initialization message.
-        :``f``: User can provide custom activation function of the reservoir.
+        :``f``: User can provide custom activation function of the reservoir. 
+                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
+                Some functions can also be given as strings. Accepted strings are:
+
+                    - ``'tanh'``
+                    - ``'sigmoid'``
+                    - ``'relu'``
+                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
+                    - ``'softmax'``
+                    - ``'id'``: Identity.
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.

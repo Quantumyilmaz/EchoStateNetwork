@@ -43,7 +43,16 @@ Echo State Network
     **Keyword Arguments**
             
         :``verbose``: Mute the initialization message.
-        :``f``: User can provide custom activation function of the reservoir.
+        :``f``: User can provide custom activation function of the reservoir. 
+                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
+                Some functions can also be given as strings. Accepted strings are:
+
+                    - ``'tanh'``
+                    - ``'sigmoid'``
+                    - ``'relu'``
+                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
+                    - ``'softmax'``
+                    - ``'id'``: Identity.
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
@@ -256,7 +265,16 @@ Executes a whole training/validation session by calling the methods ``excite``, 
     **Keyword Arguments**
 
         :``Win`` , ``Wback``: User can provide custom input, feedback matrices.
-        :``f``: User can provide custom activation function of the reservoir.
+        :``f``: User can provide custom activation function of the reservoir. 
+                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
+                Some functions can also be given as strings. Accepted strings are:
+
+                    - ``'tanh'``
+                    - ``'sigmoid'``
+                    - ``'relu'``
+                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
+                    - ``'softmax'``
+                    - ``'id'``: Identity.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
         :``bias_val``: Set strength of bias in the input, reservoir and readout connections during validation. Default is bias used in training.
         :``f_val``: User can provide custom reservoir activation function to be used during validation. Default is activation used in training.

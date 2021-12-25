@@ -97,12 +97,24 @@
 </div></blockquote>
 <p><strong>Keyword Arguments</strong></p>
 <blockquote>
-<div><dl class="field-list simple">
+<div><dl class="field-list">
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">verbose</span></code></dt>
 <dd class="field-odd"><p>Mute the initialization message.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">f</span></code></dt>
-<dd class="field-even"><p>User can provide custom activation function of the reservoir.</p>
+<dd class="field-even"><p>User can provide custom activation function of the reservoir.
+Functions in the pytorch or numpy libraries are accepted, including functions defined with <code class="docutils literal notranslate"><span class="pre">np.vectorize</span></code>.
+Some functions can also be given as strings. Accepted strings are:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'tanh'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'sigmoid'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'relu'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'leaky_{slope}'</span></code>: e.g. <code class="docutils literal notranslate"><span class="pre">'leaky_0.5'</span></code> for LeakyReLU with slope equal to <span class="math notranslate nohighlight">\(0.5\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'softmax'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'id'</span></code>: Identity.</p></li>
+</ul>
+</div></blockquote>
 </dd>
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">leak_rate</span></code></dt>
 <dd class="field-odd"><p>Leak parameter in Leaky Integrator ESN (LiESN).</p>
