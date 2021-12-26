@@ -84,6 +84,9 @@ class ESN:
     Author: Ege Yilmaz
     Year: 2021
     Title: Echo State Network class for master's thesis at ETH Zurich.
+    
+    Documentation: https://echostatenetwork.readthedocs.io/
+    
     _
         - TRAIN: Excite the reservoir states and train the linear readout via regression.
 
