@@ -328,9 +328,8 @@ ESN.update_reservoir_layers_serially
 .. warning:: Resets reservoir layer. See `ESN.reset_reservoir_layer`_.
 
 When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer will  be updated using
-`x^k = (1-\alpha)x^{k-1} + \alpha \cdot f(\textbf W_{in} \cdot u^{k-1} + \textbf W \cdot x^{k-1})` \
-, where `1\leq k \leq` the batch size, `u^k` the `k^{th}` data point in the batch and `x^1` is the initial reservoir layer before any updates. \
-`x^1` is updated according to `x^1 = (1-\alpha)x^1 + \alpha \cdot f(\textbf W_{in}\cdot u^1 + \textbf W \cdot x^1)`.
+`x^k = (1-\alpha)x^{k-1} + \alpha \cdot f(\textbf W_{in} \cdot u^{k} + \textbf W \cdot x^{k-1})` \
+, where `1\leq k \leq` the batch size, `u^k` the `k^{th}` data point in the batch and `x^0` is the initial reservoir layer before any updates.
 
 `x` here is a matrix with shape:
 
