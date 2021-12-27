@@ -257,7 +257,7 @@ class ESN:
 
         assert isinstance(desired_scaling,float)
         
-        print(f"Scaling matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
+        print(f"Scaling reservoir matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
         if reference=='ev':
             self.W *= desired_scaling / self.spectral_radius
             self.spectral_radius = self._get_spectral_radius()
