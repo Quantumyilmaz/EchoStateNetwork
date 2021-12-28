@@ -225,9 +225,11 @@ class ESN:
         self.bias = kwargs.get("bias",None)
         self.bias_vec = np.ones((1,1),dtype=self.dtype)*self.bias if self.bias else None
 
-        self.device = "cpu"
+        self.device = 'cpu'
         self._os = 'numpy'
         if use_torch:
+            # torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
         self.leak_rate = kwargs.get("leak_rate",None)
@@ -1436,19 +1438,16 @@ class ESN:
 
     def _torchify(self):
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = device.type
-
         self._mm = torch.matmul if self._mm == np.dot else self._mm #Dont change this
 
         for W_str in ['Wout','W','Win','Wback']:
             W_ = self.__getattribute__(W_str)
             if W_ is not None:
-                self.__setattr__(W_str,self._tensor(W_).to(device))
+                self.__setattr__(W_str,self._tensor(W_).to(self.device))
 
-            self.bias_vec = self._tensor(self.bias_vec).to(device)
-            self.reservoir_layer = self._tensor(self.reservoir_layer).to(device)
-            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(device)
+            self.bias_vec = self._tensor(self.bias_vec).to(self.device)
+            self.reservoir_layer = self._tensor(self.reservoir_layer).to(self.device)
+            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(self.device)
             self._vstack = torch.vstack
             self._hstack = torch.hstack
             self._cat = torch.cat

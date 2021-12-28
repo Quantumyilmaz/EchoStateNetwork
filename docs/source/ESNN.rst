@@ -78,6 +78,7 @@ It will `set the reservoir layer mode`_ to
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
         :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
+        :``device``: Give ``'cpu'`` if ``use_torch`` is ``True``, CUDA is available on your device but you want to use CPU.
         :``dtype``: Data type of reservoir. Default is float32.
 
 
