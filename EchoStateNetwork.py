@@ -202,9 +202,9 @@ class ESN:
             self._core_nodes = custom_initState.copy()
             self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
 
-        assert W.dtype == self.dtype, "Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type.  \
+        assert W is None or W.dtype == self.dtype, "Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type.  \
                                                 To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.W = np.random.choice(xn, p=pn,size=(450,450)).astype(self.dtype) if W is None else W
+        self.W = np.random.choice(xn, p=pn,size=(resSize,resSize)).astype(self.dtype) if W is None else W
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
