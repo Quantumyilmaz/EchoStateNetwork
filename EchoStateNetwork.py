@@ -394,7 +394,7 @@ class ESN:
                     assert y.shape == wobbler, "Wobbler must have shape same as the output."
                     self._wobbler = wobbler
                 elif wobble:
-                    self._wobbler = self._tensor(np.random.uniform(-1,1,size=y.shape)/10000)
+                    self._wobbler = self._tensor(np.random.uniform(-1,1,size=y.shape).astype(self.dtype)/10000)
                 else:
                     self._wobbler = 0
                 y_ = y + self._wobbler
@@ -456,11 +456,11 @@ class ESN:
         # no u, no y
         if update_rule_id == 0:
             assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-            X = self._tensor(np.zeros((bool(self.bias)+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 1:
                     # training was with no u, yes y. now validation with no u, yes y_pred
-                    X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
@@ -471,7 +471,7 @@ class ESN:
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
                     # This is only useful when input data and output data differ by a phase.
-                    X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
@@ -493,7 +493,7 @@ class ESN:
                 states = X[bool(self.bias):,:]
         # no u, yes y
         elif update_rule_id == 1:
-            X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 # no u, yes y
                 y_temp = self._y_train_last
@@ -511,11 +511,11 @@ class ESN:
             states = X[outSize+bool(self.bias):,:]
         # yes u, no y
         elif update_rule_id == 2:
-            X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 3:
                     # yes u, yes y_pred (generative)
-                    X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
@@ -538,7 +538,7 @@ class ESN:
         # yes u, yes y
         elif update_rule_id == 3:
             assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
-            X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
@@ -746,11 +746,11 @@ class ESN:
         assert self._update_rule_id_train % 2 or not wobble
         assert wobbler is None or wobble
         if wobble and wobbler is None:
-           self._wobbler = np.random.uniform(-1,1,size=(self.Wout.shape[0],valLen))/10000
+           self._wobbler = np.random.uniform(-1,1,size=(self.Wout.shape[0],valLen)).astype(self.dtype)/10000
         elif wobbler is not None:
             self._wobbler = wobbler
         else:
-            self._wobbler = np.zeros(shape=(self.Wout.shape[0],valLen))
+            self._wobbler = np.zeros(shape=(self.Wout.shape[0],valLen),dtype=self.dtype)
 
         self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True)
 
@@ -885,7 +885,7 @@ class ESN:
         self.output_transformer = self._fn_interpreter(kwargs.get("output_transformer",self.output_transformer))
 
         if custom_initState is None:
-            self.reservoir_layer = np.zeros((self.resSize,1)) if null_state_init else np.random.rand(self.resSize,1)
+            self.reservoir_layer = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
         else:
             assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
             self.reservoir_layer = custom_initState
@@ -984,12 +984,12 @@ class ESN:
 
         if layer_mode == 'batch':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.resSize,self.batch_size+init_size))))  #(resSize,batch_size)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.resSize,self.batch_size+init_size),dtype=self.dtype)))  #(resSize,batch_size)
 
         # TODO: Make it work for randomly initialized non-null reservoir initial state.
         elif self._layer_mode == 'ensemble':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self.resSize,self.batch_size+init_size))))  #(no_of_reservoirs,resSize,batch_size)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self.resSize,self.batch_size+init_size),dtype=self.dtype)))  #(no_of_reservoirs,resSize,batch_size)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 self.set_reservoir_layer_mode('ensemble',batch_size=1)  #(no_of_reservoirs,resSize,1)
@@ -1408,6 +1408,7 @@ class ESN:
             return torch.column_stack(x)            
 
     def _tensor(self,x):
+        assert x.dtype == self.dtype or str(x.dtype).split('.')[-1] == self.dtype
         if self._mm == np.dot:
             if isinstance(x,(np.ndarray,NoneType)):
                 return x
