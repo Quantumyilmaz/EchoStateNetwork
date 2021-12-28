@@ -11,6 +11,7 @@ import warnings
 from typing import Any, Optional, Union
 import torch
 import pandas as pd
+from torch._C import dtype
 # from functools import reduce
 
 NoneType = type(None)
@@ -175,12 +176,14 @@ class ESN:
                 - bias: Strength of bias. 0 to disable.
                 - Win,Wout,Wback
                 - use_torch: Use pytorch instead of numpy. Will use cuda if available.
+                - dtype: Data type of reservoir. Default is float32.
         """
         
         assert W is None or (len(W.shape)==2 and W.shape[0]==W.shape[1] and isinstance(W,np.ndarray))
         assert isinstance(resSize,int), "Please give integer reservoir size."
 
         use_torch = kwargs.get("use_torch",False)
+        self.dtype = kwargs.get('dtype',np.float32)
 
         self.resSize = resSize if W is None else W.shape[0]
         self._inSize = None
@@ -191,14 +194,15 @@ class ESN:
             np.random.seed(int(random_state))
 
         if custom_initState is None:
-            self._core_nodes = np.zeros((self.resSize,1)) if null_state_init else np.random.rand(self.resSize,1)
-            self.reservoir_layer = self._core_nodes # self._core_nodes never gets changed
+            self._core_nodes = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
+            self.reservoir_layer = self._core_nodes.copy() # self._core_nodes never gets changed
         else:
             assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
             self._core_nodes = custom_initState.copy()
-            self.reservoir_layer = self._core_nodes # self._core_nodes never gets changed
+            self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
 
-        
+        assert W.dtype == self.dtype, "Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type.  \
+                                                To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.W = np.random.choice(xn, p=pn,size=(450,450)) if W is None else W
         
         self._U = None

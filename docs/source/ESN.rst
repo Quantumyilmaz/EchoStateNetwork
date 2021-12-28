@@ -59,6 +59,7 @@ Echo State Network
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
         :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
+        :``dtype``: Data type of reservoir. Default is float32.
 
 
 ---------------------------
@@ -251,6 +252,17 @@ Executes a whole training/validation session by calling the methods ``excite``, 
         :``X_v``: Validation inputs. Has shape [...,time].
         :``y_v``: Validation targets. Has shape [...,time].
         :``training_data``: Data to fit to in regression. It will be set to ``y_t`` automatically if it is not provided. Either way, ``y_t`` will be used when calling ``excite``.
+        :``bias``: Set strength of bias in the input, reservoir and readout connections.
+        :``f``: User can provide custom activation function of the reservoir. 
+                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
+                Some functions can also be given as strings. Accepted strings are:
+
+                    - ``'tanh'``
+                    - ``'sigmoid'``
+                    - ``'relu'``
+                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
+                    - ``'softmax'``
+                    - ``'id'``: Identity.
         :``f_out_inverse``: Please give the INVERSE activation function. User can give custom output activation. No activation is used by default.
         :``f_out``: Custom output activation. Default is identity.
         :``output_transformer``: Transforms the reservoir outputs at the very end. Default is identity.
@@ -262,21 +274,15 @@ Executes a whole training/validation session by calling the methods ``excite``, 
         :``wobbler_train``: User can provide custom noise. Default is ``np.random.uniform(-1,1)/10000``.
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
+        :``regr``: User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn's regressor.
+        :``reg_type``: Regression type. Can be ``ridge`` or ``linear``. Default is ``linear``.
+        :``ridge_param``: Regularization factor in ridge regression.
+        :``solver``: See `scikit documentation`_.
+        :``error_measure``: Type of error to be displayed. Can be ``'mse'`` (Mean Squared Error) or ``'mape'`` (Mean Absolute Percentage Error).
 
     **Keyword Arguments**
 
         :``Win`` , ``Wback``: User can provide custom input, feedback matrices.
-        :``f``: User can provide custom activation function of the reservoir. 
-                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
-                Some functions can also be given as strings. Accepted strings are:
-
-                    - ``'tanh'``
-                    - ``'sigmoid'``
-                    - ``'relu'``
-                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
-                    - ``'softmax'``
-                    - ``'id'``: Identity.
-        :``bias``: Set strength of bias in the input, reservoir and readout connections.
         :``bias_val``: Set strength of bias in the input, reservoir and readout connections during validation. Default is bias used in training.
         :``f_val``: User can provide custom reservoir activation function to be used during validation. Default is activation used in training.
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).

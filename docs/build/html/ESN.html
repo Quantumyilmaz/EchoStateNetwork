@@ -103,6 +103,9 @@ Some functions can also be given as strings. Accepted strings are:</p>
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">use_torch</span></code></dt>
 <dd class="field-odd"><p>Use pytorch instead of numpy. Will use cuda if available.</p>
 </dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">dtype</span></code></dt>
+<dd class="field-even"><p>Data type of reservoir. Default is float32.</p>
+</dd>
 </dl>
 </div></blockquote>
 </div></blockquote>
@@ -322,7 +325,7 @@ This formula is for when both <code class="docutils literal notranslate"><span c
 
 <p><strong>Parameters</strong></p>
 <blockquote>
-<div><dl class="field-list simple">
+<div><dl class="field-list">
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">X_t</span></code></dt>
 <dd class="field-odd"><p>Training inputs. Has shape […,time].</p>
 </dd>
@@ -337,6 +340,24 @@ This formula is for when both <code class="docutils literal notranslate"><span c
 </dd>
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">training_data</span></code></dt>
 <dd class="field-odd"><p>Data to fit to in regression. It will be set to <code class="docutils literal notranslate"><span class="pre">y_t</span></code> automatically if it is not provided. Either way, <code class="docutils literal notranslate"><span class="pre">y_t</span></code> will be used when calling <code class="docutils literal notranslate"><span class="pre">excite</span></code>.</p>
+</dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">bias</span></code></dt>
+<dd class="field-even"><p>Set strength of bias in the input, reservoir and readout connections.</p>
+</dd>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">f</span></code></dt>
+<dd class="field-odd"><p>User can provide custom activation function of the reservoir.
+Functions in the pytorch or numpy libraries are accepted, including functions defined with <code class="docutils literal notranslate"><span class="pre">np.vectorize</span></code>.
+Some functions can also be given as strings. Accepted strings are:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'tanh'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'sigmoid'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'relu'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'leaky_{slope}'</span></code>: e.g. <code class="docutils literal notranslate"><span class="pre">'leaky_0.5'</span></code> for LeakyReLU with slope equal to <span class="math notranslate nohighlight">\(0.5\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'softmax'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'id'</span></code>: Identity.</p></li>
+</ul>
+</div></blockquote>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">f_out_inverse</span></code></dt>
 <dd class="field-even"><p>Please give the INVERSE activation function. User can give custom output activation. No activation is used by default.</p>
@@ -371,31 +392,28 @@ This formula is for when both <code class="docutils literal notranslate"><span c
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">custom_initState</span></code></dt>
 <dd class="field-even"><p>User can give custom initial reservoir state.</p>
 </dd>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">regr</span></code></dt>
+<dd class="field-odd"><p>User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn’s regressor.</p>
+</dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">reg_type</span></code></dt>
+<dd class="field-even"><p>Regression type. Can be <code class="docutils literal notranslate"><span class="pre">ridge</span></code> or <code class="docutils literal notranslate"><span class="pre">linear</span></code>. Default is <code class="docutils literal notranslate"><span class="pre">linear</span></code>.</p>
+</dd>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">ridge_param</span></code></dt>
+<dd class="field-odd"><p>Regularization factor in ridge regression.</p>
+</dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">solver</span></code></dt>
+<dd class="field-even"><p>See <a class="reference external" href="https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html?highlight=ridge#sklearn.linear_model.Ridge">scikit documentation</a>.</p>
+</dd>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">error_measure</span></code></dt>
+<dd class="field-odd"><p>Type of error to be displayed. Can be <code class="docutils literal notranslate"><span class="pre">'mse'</span></code> (Mean Squared Error) or <code class="docutils literal notranslate"><span class="pre">'mape'</span></code> (Mean Absolute Percentage Error).</p>
+</dd>
 </dl>
 </div></blockquote>
 <p><strong>Keyword Arguments</strong></p>
 <blockquote>
-<div><dl class="field-list">
+<div><dl class="field-list simple">
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">Win</span></code> , <code class="docutils literal notranslate"><span class="pre">Wback</span></code></dt>
 <dd class="field-odd"><p>User can provide custom input, feedback matrices.</p>
-</dd>
-<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">f</span></code></dt>
-<dd class="field-even"><p>User can provide custom activation function of the reservoir.
-Functions in the pytorch or numpy libraries are accepted, including functions defined with <code class="docutils literal notranslate"><span class="pre">np.vectorize</span></code>.
-Some functions can also be given as strings. Accepted strings are:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">'tanh'</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'sigmoid'</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'relu'</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'leaky_{slope}'</span></code>: e.g. <code class="docutils literal notranslate"><span class="pre">'leaky_0.5'</span></code> for LeakyReLU with slope equal to <span class="math notranslate nohighlight">\(0.5\)</span>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'softmax'</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'id'</span></code>: Identity.</p></li>
-</ul>
-</div></blockquote>
-</dd>
-<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">bias</span></code></dt>
-<dd class="field-odd"><p>Set strength of bias in the input, reservoir and readout connections.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">bias_val</span></code></dt>
 <dd class="field-even"><p>Set strength of bias in the input, reservoir and readout connections during validation. Default is bias used in training.</p>

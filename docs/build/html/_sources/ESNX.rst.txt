@@ -58,3 +58,4 @@ ESN for multitasking such as when using (mini)batches. It will `set the reservoi
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
         :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
+        :``dtype``: Data type of reservoir. Default is float32.
