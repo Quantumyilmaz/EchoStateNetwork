@@ -184,7 +184,7 @@ class ESN:
         assert isinstance(resSize,int), "Please give integer reservoir size."
 
         use_torch = kwargs.get("use_torch",False)
-        self.dtype = kwargs.get('dtype',np.float32)
+        self.dtype = kwargs.get('dtype','float32')
 
         self.resSize = resSize if W is None else W.shape[0]
         self._inSize = None
@@ -1625,7 +1625,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self.bias), out_size,bias=False,device=self.device,dtype=self.dtype)
+        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self.bias), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
