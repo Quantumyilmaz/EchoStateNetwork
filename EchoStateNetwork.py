@@ -223,7 +223,7 @@ class ESN:
         assert self.Wback is None or self.Wback.dtype == self.dtype , "Data type of the feedback connection matrix provided by the user does not match the reservoir's data type.  \
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.bias = kwargs.get("bias",None)
-        self.bias_vec = np.ones((1,1))*self.bias if self.bias else None
+        self.bias_vec = np.ones((1,1),dtype=self.dtype)*self.bias if self.bias else None
 
         self.device = "cpu"
         self._os = 'numpy'
@@ -1235,11 +1235,11 @@ class ESN:
             self.bias_vec = None
         else:
             if self._layer_mode == 'single':
-                self.bias_vec  = np.ones((1,1))*self.bias
+                self.bias_vec  = np.ones((1,1),dtype=self.dtype)*self.bias
             elif self._layer_mode == 'batch':
-                self.bias_vec  = np.ones((1,self.batch_size))*self.bias
+                self.bias_vec  = np.ones((1,self.batch_size),dtype=self.dtype)*self.bias
             elif self._layer_mode == 'ensemble':
-                self.bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size))*self.bias
+                self.bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size),dtype=self.dtype)*self.bias
             else:
                 raise Exception(f"Unknown layer mode: {self._layer_mode}.")
             
@@ -1375,7 +1375,7 @@ class ESN:
                 neg_slope = float(f.split('_')[-1])
                 return leaky_relu(neg_slope) if self._mm == np.dot else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
             elif f.lower()=="softmax":
-                return softmax if self._mm == np.dot else lambda x: torch.softmax(x,0,dtype=torch.float64)
+                return softmax if self._mm == np.dot else lambda x: torch.softmax(x,0,dtype=self.reservoir_layer.dtype)
             elif f.lower()=="id":
                 return Id
             else:
