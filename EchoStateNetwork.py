@@ -6,6 +6,7 @@
 
 import numpy as np
 from scipy import linalg
+from scipy.sparse.construct import rand
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
 from typing import Any, Optional, Union
@@ -203,20 +204,26 @@ class ESN:
 
         assert W.dtype == self.dtype, "Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type.  \
                                                 To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.W = np.random.choice(xn, p=pn,size=(450,450)) if W is None else W
+        self.W = np.random.choice(xn, p=pn,size=(450,450)).astype(self.dtype) if W is None else W
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
         self._layer_mode = 'single' #batch, ensemble
-        self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function
+        self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self._atleastND = at_least_2d
 
 
         self.Win = kwargs.get("Win",None)
+        assert self.Win is None or self.Win.dtype == self.dtype , "Data type of the input connection matrix provided by the user does not match the reservoir's data type.  \
+                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.Wout = kwargs.get("Wout",None)
+        assert self.Wout is None or self.Wout.dtype == self.dtype , "Data type of the output connection matrix provided by the user does not match the reservoir's data type.  \
+                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.Wback = kwargs.get("Wback",None)
+        assert self.Wback is None or self.Wback.dtype == self.dtype , "Data type of the feedback connection matrix provided by the user does not match the reservoir's data type.  \
+                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.bias = kwargs.get("bias",None)
-        self._bias_vec = self._tensor([self.bias]) if self.bias else None
+        self._bias_vec = np.ones((1,1))*self.bias if self.bias else None
 
         self.device = "cpu"
         self._os = 'numpy'
@@ -367,8 +374,14 @@ class ESN:
                 # Bias
                 if self.bias is None:
                     self.bias = bias
-                    self._bias_vec  = self._tensor([self.bias])
-                assert isinstance(self.bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
+                    if bias is not None:
+                        if self._layer_mode == 'single':
+                            self._bias_vec  = self._tensor(np.ones((1,1))*self.bias)
+                        elif self._layer_mode == 'batch':
+                            self._bias_vec  = self._tensor(np.ones((1,self.batch_size))*self.bias)
+                        elif self._layer_mode == 'ensemble':
+                            self._bias_vec  = self._tensor(np.ones((self.no_of_reservoirs,self.batch_size))*self.bias)
+                # assert isinstance(self.bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
                 # Input Connection
                 if self.Win is None:
                     self.Win = kwargs.get("Win",self._generate_Win(inSize))
@@ -449,44 +462,44 @@ class ESN:
         # no u, no y
         if update_rule_id == 0:
             assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-            X = self._tensor(np.zeros((self.bias+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+self.resSize,trainLen-initLen)))
             if validation_mode:
                 if self._update_rule_id_train == 1:
                     # training was with no u, yes y. now validation with no u, yes y_pred
-                    X = self._tensor(np.zeros((self.bias+outSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen)))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
                         X[:,t] =  self._pack_internal_state(None,y_temp)
                         y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
-                    states = X[self.bias+outSize:,:]
+                    states = X[bool(self.bias)+outSize:,:]
 
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
                     # This is only useful when input data and output data differ by a phase.
-                    X = self._tensor(np.zeros((self.bias+inSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen)))
                     u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
                         X[:,t] = self._pack_internal_state(u_temp)
                         u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])))
-                    states = X[inSize+self.bias:,:] 
+                    states = X[inSize+bool(self.bias):,:] 
 
                 else:
                     # training was with no u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer()
                         X[:,t] = self._pack_internal_state()
-                    states = X[self.bias:,:]
+                    states = X[bool(self.bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer()
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state()
-                states = X[self.bias:,:]
+                states = X[bool(self.bias):,:]
         # no u, yes y
         elif update_rule_id == 1:
-            X = self._tensor(np.zeros((self.bias+outSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen)))
             if validation_mode:
                 # no u, yes y
                 y_temp = self._y_train_last
@@ -501,37 +514,37 @@ class ESN:
                         X[:,t-initLen] = self._pack_internal_state(None,y_[:,t-1])
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
-            states = X[outSize+self.bias:,:]
+            states = X[outSize+bool(self.bias):,:]
         # yes u, no y
         elif update_rule_id == 2:
-            X = self._tensor(np.zeros((self.bias+inSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen)))
             if validation_mode:
                 if self._update_rule_id_train == 3:
                     # yes u, yes y_pred (generative)
-                    X = self._tensor(np.zeros((self.bias+inSize+outSize+self.resSize,trainLen-initLen)))
+                    X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen)))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
                         X[:,t] = self._pack_internal_state(u[:,t],y_temp)
                         y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
-                    states = X[self.bias+inSize+outSize:,:]
+                    states = X[bool(self.bias)+inSize+outSize:,:]
                 else:
                     # yes u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t])
                         X[:,t] = self._pack_internal_state(u[:,t])
-                    states = X[inSize+self.bias:,:]
+                    states = X[inSize+bool(self.bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(u[:,t],None)
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state(u[:,t])
                 self._inSize = inSize
-                states = X[inSize+self.bias:,:] 
+                states = X[inSize+bool(self.bias):,:] 
         # yes u, yes y
         elif update_rule_id == 3:
             assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
-            X = self._tensor(np.zeros((self.bias+inSize+outSize+self.resSize,trainLen-initLen)))
+            X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen)))
             if validation_mode:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
@@ -546,7 +559,7 @@ class ESN:
                 self._inSize = inSize
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
-            states = X[inSize+outSize+self.bias:,:]
+            states = X[inSize+outSize+bool(self.bias):,:]
         #?
         else:
             raise NotImplementedError("Could not find a case for this training.")       
@@ -712,10 +725,10 @@ class ESN:
             assert self._inSize == u.shape[0], "Please give input consistent with training input."
         if y is not None:
             assert self._outSize == y.shape[0], "Please give output consistent with training output."
-        if self.bias != int(bias):
+        if self.bias != bias:
             self.bias = bias
             self._bias_vec = self._tensor([self.bias])
-            warnings.warn(f"You have used {self.bias} during training but now you are using {int(bias)}.")
+            warnings.warn(f"You have used {self.bias} during training but now you are using {bias}.")
         if self.f != f:
             self.f = f
             warnings.warn(f"You have used {self.f} reservoir activation during training but now you are using {f}.")
@@ -1223,6 +1236,16 @@ class ESN:
         else:
             raise Exception("Something is terribly wrong.")
     
+    def _make_bias_vec(self):
+        if self._layer_mode == 'single':
+            self._bias_vec  = self._tensor(np.ones((1,1))*self.bias)
+        elif self._layer_mode == 'batch':
+            self._bias_vec  = self._tensor(np.ones((1,self.batch_size))*self.bias)
+        elif self._layer_mode == 'ensemble':
+            self._bias_vec  = self._tensor(np.ones((self.no_of_reservoirs,1,self.batch_size))*self.bias)
+        else:
+            raise Exception(f"Unknown layer mode: {self._layer_mode}.")
+
     def _collapse_reservoir_layers(self):
 
         """
@@ -1613,7 +1636,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+self.bias, out_size,bias=False,device=self.device,dtype=torch.float64)
+        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self.bias), out_size,bias=False,device=self.device,dtype=self.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
