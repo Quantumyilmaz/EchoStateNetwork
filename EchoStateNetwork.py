@@ -223,7 +223,7 @@ class ESN:
         assert self.Wback is None or self.Wback.dtype == self.dtype , "Data type of the feedback connection matrix provided by the user does not match the reservoir's data type.  \
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.bias = kwargs.get("bias",None)
-        self._bias_vec = np.ones((1,1))*self.bias if self.bias else None
+        self.bias_vec = np.ones((1,1))*self.bias if self.bias else None
 
         self.device = "cpu"
         self._os = 'numpy'
@@ -374,13 +374,7 @@ class ESN:
                 # Bias
                 if self.bias is None:
                     self.bias = bias
-                    if bias is not None:
-                        if self._layer_mode == 'single':
-                            self._bias_vec  = self._tensor(np.ones((1,1))*self.bias)
-                        elif self._layer_mode == 'batch':
-                            self._bias_vec  = self._tensor(np.ones((1,self.batch_size))*self.bias)
-                        elif self._layer_mode == 'ensemble':
-                            self._bias_vec  = self._tensor(np.ones((self.no_of_reservoirs,self.batch_size))*self.bias)
+                    self._make_bias_vec()
                 # assert isinstance(self.bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
                 # Input Connection
                 if self.Win is None:
@@ -727,7 +721,7 @@ class ESN:
             assert self._outSize == y.shape[0], "Please give output consistent with training output."
         if self.bias != bias:
             self.bias = bias
-            self._bias_vec = self._tensor([self.bias])
+            self._make_bias_vec()
             warnings.warn(f"You have used {self.bias} during training but now you are using {bias}.")
         if self.f != f:
             self.f = f
@@ -885,7 +879,7 @@ class ESN:
         self.f_out = self._fn_interpreter(kwargs.get("f_out",self.f_out))
         self.f_out_inverse = self._fn_interpreter(kwargs.get("f_out_inverse",self.f_out_inverse))
         self.bias = kwargs.get("bias",self.bias)
-        self._bias_vec = self._tensor([self.bias]) if self.bias else None
+        self._make_bias_vec()
         self.leak_rate = kwargs.get("leak_rate",self.leak_rate)
         self.leak_version = kwargs.get("leak_version",self.leak_version)
         self.output_transformer = self._fn_interpreter(kwargs.get("output_transformer",self.output_transformer))
@@ -1184,14 +1178,14 @@ class ESN:
             if leak_version:
                 if self.bias:
                     return (1-leak_rate)*x + \
-                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
+                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))))
                 else:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
             else:
                 if self.bias:
                     return (1-leak_rate)*x + \
-                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
+                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))))
                 else:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
@@ -1218,7 +1212,7 @@ class ESN:
                 if self.bias:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + \
-                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                                    self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
                 else:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + \
@@ -1228,7 +1222,7 @@ class ESN:
                 if self.bias:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + \
-                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                                    self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
                 else:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + \
@@ -1237,14 +1231,37 @@ class ESN:
             raise Exception("Something is terribly wrong.")
     
     def _make_bias_vec(self):
+        if self.bias is None:
+            self.bias_vec = None
+        else:
+            if self._layer_mode == 'single':
+                self.bias_vec  = np.ones((1,1))*self.bias
+            elif self._layer_mode == 'batch':
+                self.bias_vec  = np.ones((1,self.batch_size))*self.bias
+            elif self._layer_mode == 'ensemble':
+                self.bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size))*self.bias
+            else:
+                raise Exception(f"Unknown layer mode: {self._layer_mode}.")
+            
+            self.bias_vec = self._send_tensor_to_device(self._tensor(self.bias_vec))
+ 
+    def _make_reservoir_layer(self):
+
+        """
+        WARNING: RESETS RESERVOIR LAYERS!
+        """
+        core_nodes = self._core_nodes.copy()
         if self._layer_mode == 'single':
-            self._bias_vec  = self._tensor(np.ones((1,1))*self.bias)
+            self.reservoir_layer  = core_nodes
         elif self._layer_mode == 'batch':
-            self._bias_vec  = self._tensor(np.ones((1,self.batch_size))*self.bias)
+            self.reservoir_layer  = np.hstack(self.batch_size*[core_nodes])
         elif self._layer_mode == 'ensemble':
-            self._bias_vec  = self._tensor(np.ones((self.no_of_reservoirs,1,self.batch_size))*self.bias)
+            self.reservoir_layer  = np.stack(self.no_of_reservoirs*[np.hstack(self.batch_size*[core_nodes])])
         else:
             raise Exception(f"Unknown layer mode: {self._layer_mode}.")
+
+        self.reservoir_layer = self._send_tensor_to_device(self._tensor(self.reservoir_layer))
+        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
 
     def _collapse_reservoir_layers(self):
 
@@ -1255,31 +1272,19 @@ class ESN:
         if self._layer_mode == 'single':
             raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be collapsed further in dimension.')
 
-        self.reset_reservoir_layer()
-
         if self._layer_mode == 'batch':
-            self.reservoir_layer = self.reservoir_layer[:,0:1]
-            if self.bias:
-                self._bias_vec = self._bias_vec[:,0:1]
-
             self._layer_mode = 'single'
 
         elif self._layer_mode == 'ensemble':
-            self.reservoir_layer = self.reservoir_layer[0,:,:]
-            if self.bias:
-                self._bias_vec = self._bias_vec[0,:,:]
-
+            self._layer_mode = 'batch'
             self._vstack = torch.vstack
             self._hstack = torch.hstack
             self._atleastND = at_least_2d
-
-            self._layer_mode = 'batch'
-
         else:
             raise Exception(f"Unknown layer mode: {self._layer_mode}. Needs to be one of the following: {','.join(layer_hierarchy_dict.keys())}.")
         
-        self._bias_vec = self._send_tensor_to_device(self._bias_vec)
-        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
+        self._make_bias_vec()
+        self._make_reservoir_layer()
     
     def _expand_reservoir_layer(self):
 
@@ -1290,23 +1295,12 @@ class ESN:
         if self._layer_mode == 'ensemble':
             raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be expanded further in dimension.')
 
-        self.reset_reservoir_layer()
-
         if self._layer_mode == 'single':
-            self.reservoir_layer = self._column_stack(self.batch_size*[self.reservoir_layer])
-            if self.bias:
-                self._bias_vec = self._tensor(np.ones((1,self.batch_size))*self.bias)
-        
             self._layer_mode = 'batch'
 
         elif self._layer_mode == 'batch':
             assert self._os == 'torch', "To use ensemble mode, please pass in keyword argument 'use_torch=True' when initializing your Echo State Network."
-            self.reservoir_layer = torch.stack(self.no_of_reservoirs*[self.reservoir_layer])
-            if self.bias:
-                self._bias_vec = torch.ones(self.no_of_reservoirs,1,self.batch_size)*self.bias
-            
             self._layer_mode = 'ensemble'
-
             self._vstack = lambda x: torch.cat(x,1)
             self._hstack = lambda x: torch.cat(x,2)
             self._atleastND = at_least_3d
@@ -1314,25 +1308,25 @@ class ESN:
         else:
             raise Exception(f"Unknown layer mode: {self._layer_mode}. Needs to be one of the following: {','.join(layer_hierarchy_dict.keys())}.")
 
-        self._bias_vec = self._send_tensor_to_device(self._bias_vec)
-        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
+        self._make_bias_vec()
+        self._make_reservoir_layer()
 
     def _pack_internal_state(self,in_=None,out_=None):
         # no u, no y
         if in_ is None and out_ is None:
-            return self._cat((self._bias_vec,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self.bias_vec,self.reservoir_layer.ravel()))#.ravel()
 
         # no u, yes y
         elif in_ is None and out_ is not None:
-            return self._cat((self._bias_vec,out_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self.bias_vec,out_,self.reservoir_layer.ravel()))#.ravel()
 
         # yes u, no y
         elif in_ is not None and out_ is None:
-            return self._cat((self._bias_vec,in_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self.bias_vec,in_,self.reservoir_layer.ravel()))#.ravel()
 
         # yes u, yes y
         elif in_ is not None and out_ is not None:
-            return self._cat((self._bias_vec,in_,out_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self.bias_vec,in_,out_,self.reservoir_layer.ravel()))#.ravel()
     
     def _get_update_rule_id(self,in_=None,out_=None):
         return min(3,(bool(in_ is not None) + 1)*(bool(in_ is not None)+bool(out_ is not None)))
@@ -1361,17 +1355,13 @@ class ESN:
         return leak_rate_ , leak_version_
 
     def _generate_Win(self,inSize):
-        Win = self._tensor(np.random.rand(self.resSize,bool(self.bias)+inSize) - 0.5)
-        Win = self._send_tensor_to_device(Win)
-        assert self._get_tensor_device(Win) == self.device
-        return Win
+        Win = np.random.rand(self.resSize,bool(self.bias)+inSize).astype(self.dtype) - 0.5
+        return self._send_tensor_to_device(self._tensor(Win))
         # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
         # self.Win = np.where(Win==0, -1, Win)
     def _generate_Wback(self,outSize):
-        Wback = self._tensor(np.random.uniform(-2,2,size=(self.resSize,outSize)))
-        Wback = self._send_tensor_to_device(Wback)
-        assert self._get_tensor_device(Wback) == self.device
-        return Wback
+        Wback = np.random.uniform(-2,2,size=(self.resSize,outSize)).astype(self.dtype)
+        return self._send_tensor_to_device(self._tensor(Wback))
 
     def _fn_interpreter(self,f):
         if isinstance(f,str):
@@ -1448,17 +1438,16 @@ class ESN:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device.type
 
-        self._mm = torch.matmul if self._mm == np.dot else self._mm
+        self._mm = torch.matmul if self._mm == np.dot else self._mm #Dont change this
 
         for W_str in ['Wout','W','Win','Wback']:
             W_ = self.__getattribute__(W_str)
             if W_ is not None:
                 self.__setattr__(W_str,self._tensor(W_).to(device))
 
-            self._bias_vec = self._tensor(self._bias_vec).to(device)
-            self._core_nodes = self._tensor(self._core_nodes).to(device)
+            self.bias_vec = self._tensor(self.bias_vec).to(device)
             self.reservoir_layer = self._tensor(self.reservoir_layer).to(device)
-            self._reservoir_layer_init = self.reservoir_layer.clone()
+            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(device)
             self._vstack = torch.vstack
             self._hstack = torch.hstack
             self._cat = torch.cat
@@ -1490,7 +1479,7 @@ class ESN:
             assert self._update_rule_id_train==2
 
         if self.bias:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self._bias_vec).transpose(-1,-2))).transpose(-1,-2)
+            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self.bias_vec).transpose(-1,-2))).transpose(-1,-2)
         else:
             self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
         return self._mm(self.Wout,self._U)
@@ -1661,14 +1650,14 @@ class ESNN(ESN,torch.nn.Module):
 
         assert self._get_tensor_device(in_) == self.device, (self.device,in_)
 
-        if self._update_rule_id_train is None:
-            self._update_rule_id_train = 2
-        else:
-            assert self._update_rule_id_train==2
+        # if self._update_rule_id_train is None:
+        #     self._update_rule_id_train = 2
+        # else:
+        #     assert self._update_rule_id_train==2
 
 
         if self.bias:
-            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self._bias_vec)))
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self.bias_vec)))
         else:
             self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer))
 
