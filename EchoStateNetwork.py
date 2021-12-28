@@ -202,7 +202,7 @@ class ESN:
             self._core_nodes = custom_initState.copy()
             self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
 
-        assert W is None or W.dtype == self.dtype, f"Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type: {self.dtype}{W.dtype}.  \
+        assert W is None or W.dtype == self.dtype, f"Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {W.dtype}.  \
                                                 To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.W = np.random.choice(xn, p=pn,size=(resSize,resSize)).astype(self.dtype) if W is None else W
         
@@ -214,13 +214,13 @@ class ESN:
 
 
         self.Win = kwargs.get("Win",None)
-        assert self.Win is None or self.Win.dtype == self.dtype , f"Data type of the input connection matrix provided by the user does not match the reservoir's data type: {self.dtype}{self.Win.dtype}.\
+        assert self.Win is None or self.Win.dtype == self.dtype , f"Data type of the input connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Win.dtype}.\
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.Wout = kwargs.get("Wout",None)
-        assert self.Wout is None or self.Wout.dtype == self.dtype , f"Data type of the output connection matrix provided by the user does not match the reservoir's data type: {self.dtype}{self.Wout.dtype}.\
+        assert self.Wout is None or self.Wout.dtype == self.dtype , f"Data type of the output connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Wout.dtype}.\
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.Wback = kwargs.get("Wback",None)
-        assert self.Wback is None or self.Wback.dtype == self.dtype , f"Data type of the feedback connection matrix provided by the user does not match the reservoir's data type: {self.dtype}{self.Wback.dtype}.  \
+        assert self.Wback is None or self.Wback.dtype == self.dtype , f"Data type of the feedback connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Wback.dtype}.  \
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
         self.bias = kwargs.get("bias",None)
         self.bias_vec = np.ones((1,1),dtype=self.dtype)*self.bias if self.bias else None
