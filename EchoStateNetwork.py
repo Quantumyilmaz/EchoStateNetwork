@@ -1091,9 +1091,12 @@ class ESN:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
     
     def cpu(self) -> NoneType:
+        self.device = 'cpu'
         for val in self.__dict__.values():
             if hasattr(val,'cpu'):
                 val = val.cpu()
+            elif hasattr(val,'to'):
+                val = self._send_tensor_to_device(val)
     
     def save(self,save_path:str) -> NoneType:
         """
