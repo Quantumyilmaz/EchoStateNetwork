@@ -78,6 +78,20 @@ Scales the reservoir connection matrix to have certain spectral norm or radius.
         :``desired_scaling``: Scales the reservoir matrix to have the desired spectral norm or radius.
         :``reference``: Give ``'ev'`` (eigenvalue) to choose spectral radius, ``'sv'`` (singular value) to choose spectral norm as reference.
 
+---------------------------
+ESN.reconnect_reservoir
+---------------------------
+
+Assigns new matrix to the reservoir with redefined connectivity.
+
+
+    .. method:: reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]]) -> None
+
+
+    **Parameters**
+
+        :``xn`` , ``pn``: User can provide random variable to alter the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities of the random variable.
+
 
 ----------
 ESN.excite

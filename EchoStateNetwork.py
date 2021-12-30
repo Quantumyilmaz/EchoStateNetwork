@@ -6,20 +6,18 @@
 
 import numpy as np
 from scipy import linalg
-from scipy.sparse.construct import rand
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
 from typing import Any, Optional, Union
 import torch
 import pandas as pd
-from torch._C import dtype
 # from functools import reduce
 
 NoneType = type(None)
 
 sigmoid = lambda k: 1 / (1 + np.exp(-k))
 
-leaky_relu = lambda a: np.vectorize(lambda x: x if x>=0 else a*x,otypes=[np.float32])
+leaky_relu = lambda a: np.vectorize(lambda x: x if x>=0 else a*x,otypes=[np.float32,np.float64])
 
 softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=0)
 
@@ -185,11 +183,14 @@ class ESN:
 
         use_torch = kwargs.get("use_torch",False)
         self.dtype = kwargs.get('dtype','float32')
+        self.device = 'cpu'
+        self.__xn = xn
+        self.__pn = pn
 
+        assert W is not None or resSize is not None, "Please provide W and/or resSize."
         self.resSize = resSize if W is None else W.shape[0]
         self._inSize = None
         self._outSize = None
-        #self._input_shape_length = 1
         self._random_state = random_state
         if self._random_state:
             np.random.seed(int(random_state))
@@ -204,7 +205,7 @@ class ESN:
 
         assert W is None or W.dtype == self.dtype, f"Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {W.dtype}.  \
                                                 To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.W = np.random.choice(xn, p=pn,size=(resSize,resSize)).astype(self.dtype) if W is None else W
+        self.W = self._generate_W() if W is None else W
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
@@ -225,7 +226,6 @@ class ESN:
         self.bias = kwargs.get("bias",None)
         self.bias_vec = np.ones((1,1),dtype=self.dtype)*self.bias if self.bias else None
 
-        self.device = 'cpu'
         self._os = 'numpy'
         if use_torch:
             # torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -253,7 +253,6 @@ class ESN:
 
         self.no_of_reservoirs = None
         self.batch_size = None
-
 
     def scale_reservoir_weights(self,desired_scaling: float, reference='ev') -> NoneType:
 
@@ -283,7 +282,11 @@ class ESN:
             print(f'Done: {self.spectral_norm}')
         else:
             raise Exception('{reference} is unsupported.')
-        
+
+    def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]]) -> None:
+        self.__xn = xn
+        self.__pn = pn
+        self.W = self._generate_W()
 
     def excite(self,
                 u: np.ndarray=None,
@@ -569,7 +572,6 @@ class ESN:
             self.reg_X = X if self.reg_X is None else self._cat([self.reg_X,X],axis=1)
             self.states = states if self.states is None else self._cat([self.states,states],axis=1)
 
-
     def reg_fit(self,
                 y: np.ndarray,
                 f_out_inverse=None,
@@ -657,7 +659,6 @@ class ESN:
 
         return error
    
-
     def validate(self,
                 u: np.ndarray=None,
                 y: np.ndarray=None,
@@ -757,7 +758,6 @@ class ESN:
         self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True)
 
         return self.output_transformer(self.f_out(self._mm(self.Wout, self._X_val)))
-
 
     def session(self,
                 X_t: np.ndarray=None,
@@ -931,7 +931,6 @@ class ESN:
                     )
         
         return pred
-
 
     def test(self):
         "TBD"
@@ -1364,6 +1363,11 @@ class ESN:
         return self._send_tensor_to_device(self._tensor(Win))
         # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
         # self.Win = np.where(Win==0, -1, Win)
+
+    def _generate_W(self):
+        W = np.random.choice(self.__xn, p=self.__pn,size=(self.resSize,self.resSize)).astype(self.dtype)
+        return self._send_tensor_to_device(self._tensor(W))
+
     def _generate_Wback(self,outSize):
         Wback = np.random.uniform(-2,2,size=(self.resSize,outSize)).astype(self.dtype)
         return self._send_tensor_to_device(self._tensor(Wback))
