@@ -1545,8 +1545,8 @@ class ESN:
 
         if self_size is None:
             setattr(self,size_str,size)
-        elif w_name == 'W':
-            pass
+        elif size is None:
+            assert self_size is not None
         else:
             assert self_size == size, f'Reservoir has {weight_dict[w_name]} size={self_size} but you have given {weight_dict[w_name]} size={size}.'
         
