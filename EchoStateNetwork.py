@@ -195,6 +195,8 @@ class ESN:
         self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self.__xn = xn
         self.__pn = pn
+        if not hasattr(self,'_name'):
+            self._name = 'ESN'
 
         self._bias = kwargs.get("bias")
 
@@ -263,7 +265,7 @@ class ESN:
         self.spectral_radius = self._get_spectral_radius()
         self.spectral_norm = self._get_spectral_norm()
         if verbose:
-            print(f'Reservoir generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
+            print(f'{self._name} generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
 
         self.no_of_reservoirs = None
         self.batch_size = None
@@ -1575,7 +1577,6 @@ class ESNX(ESN):
     """
     def __init__(self, 
                 batch_size: int,
-                W: np.ndarray = None, 
                 resSize: int = 450, 
                 xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
@@ -1583,9 +1584,10 @@ class ESNX(ESN):
                 null_state_init: bool = True,
                 custom_initState: np.ndarray = None,
                 **kwargs):
+        
+        self._name = 'ESNX'
 
-        super().__init__(W=W, 
-                        resSize=resSize, 
+        super().__init__(resSize=resSize, 
                         xn=xn, 
                         pn=pn, 
                         random_state=random_state, 
@@ -1617,8 +1619,6 @@ class ESNS(ESN):
     def __init__(self, 
                 no_of_reservoirs: int,
                 batch_size: int,
-                bias: int,
-                W: np.ndarray = None, 
                 resSize: int = 450, 
                 xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
@@ -1627,8 +1627,9 @@ class ESNS(ESN):
                 custom_initState: np.ndarray = None,
                 **kwargs):
 
-        super().__init__(W=W, 
-                        resSize=resSize, 
+        self._name = 'ESNS'
+
+        super().__init__(resSize=resSize, 
                         xn=xn, 
                         pn=pn, 
                         random_state=random_state, 
@@ -1636,7 +1637,6 @@ class ESNS(ESN):
                         custom_initState=custom_initState, 
                         batch_size=batch_size,
                         use_torch=True,
-                        bias=bias,
                         **kwargs)
         
         assert no_of_reservoirs>1,"Use ESNX or ESN instead."
@@ -1670,9 +1670,7 @@ class ESNN(ESN,torch.nn.Module):
                 batch_size: int,
                 in_size: int,
                 out_size: int,
-                bias: int,
                 no_of_reservoirs: int=None,
-                W: np.ndarray = None, 
                 resSize: int = 450,
                 xn: list = [0, 0.4, -0.4],
                 pn: list = [0.9875, 0.00625, 0.00625], 
@@ -1681,18 +1679,16 @@ class ESNN(ESN,torch.nn.Module):
                 custom_initState: np.ndarray = None,
                 **kwargs):
 
+        self._name = 'ESNN'
 
-        ESN.__init__(  self, 
-                        W=W, 
-                        resSize=resSize, 
-                        xn=xn, 
-                        pn=pn, 
-                        random_state=random_state, 
-                        null_state_init=null_state_init, 
-                        custom_initState=custom_initState,
-                        use_torch=True,
-                        bias = bias,
-                        **kwargs)
+        ESN.__init__(resSize=resSize, 
+                    xn=xn, 
+                    pn=pn, 
+                    random_state=random_state, 
+                    null_state_init=null_state_init, 
+                    custom_initState=custom_initState,
+                    use_torch=True,
+                    **kwargs)
 
         torch.nn.Module.__init__(self)
 
