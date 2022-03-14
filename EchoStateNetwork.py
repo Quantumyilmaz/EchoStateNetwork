@@ -5,7 +5,6 @@
 # Documentation: https://echostatenetwork.readthedocs.io/
 
 import numpy as np
-from scipy import linalg
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
 from typing import Any, Optional, Union
@@ -43,9 +42,15 @@ layer_hierarchy_dict = {'single':0,'batch':1,'ensemble':2}
 # KEEP IT UPDATED
 echo_state_networks_list = {'ESN','ESNX','ESNS','ESNN'}
 
-
+weight_dict = {'Win':'input','W':'reservoir','Wout':'output','Wback':'feedback'}
+def weight_message(weight_name:str,action:str):
+    message = f'{weight_name} ({weight_dict[weight_name]} weights)'
+    print(message,action+'.')
+size_dict = {key:val for key,val in zip(weight_dict,['_inSize','resSize','_outSize','_outSize'])}
 
 def at_least_2d(arr):
+    if arr is None:
+        return arr
     if len(arr.shape)==1:
         return arr[:,None]
     elif len(arr.shape)==2:
@@ -56,7 +61,7 @@ def at_least_2d(arr):
 def at_least_3d(arr):
     if len(arr.shape)==2:
         return arr[:,:,None] if isinstance(arr,torch.Tensor) else arr[:,:,None]
-    elif len(arr.shape)==3:
+    elif len(arr.shape)==3 or arr is None:
         return arr if isinstance(arr,torch.Tensor) else arr
     else:
         raise Exception(f"Unsupported array shape: {arr.shape}.")
@@ -72,10 +77,18 @@ def is_normal(x):
     else:
         raise Exception(f"Unsupported array type.")
 
-class ESN:
+# class Mat(list):
+#     def __matmul__(self, B):
+#         A = self
+#         return Mat([[sum(A[i][k]*B[k][j] for k in range(len(B)))
+#                     for j in range(len(B[0])) ] for i in range(len(A))])
 
-    # TODO: Add bias to every layer?
-    # TODO: Adjustable dtype?
+# A = Mat([[1,3],[7,5]])
+# B = Mat([[6,8],[4,2]])
+
+# print(A @ B)
+
+class ESN:
 
     """
     DOCUMENTATION
@@ -135,7 +148,6 @@ class ESN:
     """
 
     def __init__(self,
-                W: np.ndarray=None,
                 resSize: int=400,
                 xn: list=[0,0.4,-0.4],
                 pn: list=[0.9875, 0.00625, 0.00625],
@@ -152,8 +164,6 @@ class ESN:
 
         Variables
         -
-
-            - W: User can provide custom reservoir matrix
 
             - resSize: Number of units in the reservoir.
 
@@ -173,27 +183,49 @@ class ESN:
                 - leak_rate: Leak parameter in Leaky Integrator ESN (LiESN).
                 - leak_version: Give 0 for Jaeger's recursion formula, give 1 for recursion formula in ESNRLS paper.
                 - bias: Strength of bias. 0 to disable.
-                - Win,Wout,Wback
+                - W,Win,Wout,Wback
                 - use_torch: Use pytorch instead of numpy. Will use cuda if available.
                 - dtype: Data type of reservoir. Default is float32.
         """
-        
-        assert W is None or (len(W.shape)==2 and W.shape[0]==W.shape[1] and isinstance(W,np.ndarray))
-        assert isinstance(resSize,int), "Please give integer reservoir size."
 
+        verbose = kwargs.get("verbose",True)
         use_torch = kwargs.get("use_torch",False)
         self.dtype = kwargs.get('dtype','float32')
         self.device = 'cpu'
+        self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self.__xn = xn
         self.__pn = pn
 
-        assert W is not None or resSize is not None, "Please provide W and/or resSize."
-        self.resSize = resSize if W is None else W.shape[0]
-        self._inSize = None
-        self._outSize = None
+        self._bias = kwargs.get("bias")
+
         self._random_state = random_state
         if self._random_state:
             np.random.seed(int(random_state))
+
+        assert kwargs.get('W') is not None or isinstance(resSize,int), f"Please provide W ({weight_dict['W']} matrix) or resSize."
+
+        for w_name in weight_dict:
+            w = kwargs.get(w_name)
+            setattr(self,w_name,w)
+            size_str = size_dict[w_name]
+            size_info = None
+
+            if w is not None:
+                assert len(w.shape)==2 and isinstance(w,np.ndarray)
+                assert w.dtype == self.dtype, f"Data type of the {weight_dict[w_name]} connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {w.dtype}.\
+                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
+
+                size_info = w.shape[1] if w_name != 'Wout' else w.shape[0]
+                if w_name == 'Win':
+                    size_info -= bool(self._bias)
+
+            setattr(self,size_str,size_info)
+        
+        if self.W is None:
+            self.resSize = resSize
+            self.W = self.make_connection('W')
+
+        self.__check_connections()
 
         if custom_initState is None:
             self._core_nodes = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
@@ -202,29 +234,12 @@ class ESN:
             assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
             self._core_nodes = custom_initState.copy()
             self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
-
-        assert W is None or W.dtype == self.dtype, f"Data type of the reservoir connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {W.dtype}.  \
-                                                To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.W = self._generate_W() if W is None else W
         
         self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
         self._layer_mode = 'single' #batch, ensemble
-        self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
+        self._make_bias_vec()
         self._atleastND = at_least_2d
-
-
-        self.Win = kwargs.get("Win",None)
-        assert self.Win is None or self.Win.dtype == self.dtype , f"Data type of the input connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Win.dtype}.\
-                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.Wout = kwargs.get("Wout",None)
-        assert self.Wout is None or self.Wout.dtype == self.dtype , f"Data type of the output connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Wout.dtype}.\
-                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.Wback = kwargs.get("Wback",None)
-        assert self.Wback is None or self.Wback.dtype == self.dtype , f"Data type of the feedback connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {self.Wback.dtype}.  \
-                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
-        self.bias = kwargs.get("bias",None)
-        self.bias_vec = np.ones((1,1),dtype=self.dtype)*self.bias if self.bias else None
 
         self._os = 'numpy'
         if use_torch:
@@ -232,13 +247,13 @@ class ESN:
             self.device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
-        self.leak_rate = kwargs.get("leak_rate",None)
-        self.leak_version = kwargs.get("leak_version",None)
+        self.leak_rate = kwargs.get("leak_rate")
+        self.leak_version = kwargs.get("leak_version")
         self.states = None
         self.val_states = None
         self._update_rule_id_train = None
         self._update_rule_id_val = None
-        self.f = self._fn_interpreter(kwargs.get("f",None))
+        self.f = self._fn_interpreter(kwargs.get("f"))
         self.f_out = None
         self.f_out_inverse = None
         self.output_transformer = None
@@ -247,9 +262,8 @@ class ESN:
 
         self.spectral_radius = self._get_spectral_radius()
         self.spectral_norm = self._get_spectral_norm()
-        if kwargs.get("verbose",1):
+        if verbose:
             print(f'Reservoir generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
-
 
         self.no_of_reservoirs = None
         self.batch_size = None
@@ -270,6 +284,10 @@ class ESN:
         assert isinstance(desired_scaling,float)
         
         print(f"Scaling reservoir matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
+
+        if self._get_tensor_device(self.W) != 'cpu':
+            self.W = self.W.cpu()
+
         if reference=='ev':
             self.W *= desired_scaling / self.spectral_radius
             self.spectral_radius = self._get_spectral_radius()
@@ -282,11 +300,20 @@ class ESN:
             print(f'Done: {self.spectral_norm}')
         else:
             raise Exception('{reference} is unsupported.')
+        
+        self.W = self._send_tensor_to_device(self.W)
 
-    def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]]) -> None:
+    def set_bias(self,strength:float):
+        assert self._bias is not None,'Cannot change bias strength since the reservoir was initialized with bias disabled. Please reinitialize using bias=True.'
+        self._bias = strength
+        self._make_bias_vec()
+
+    def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None:
         self.__xn = xn
         self.__pn = pn
-        self.W = self._generate_W()
+        self.make_connection('W',inplace=True,verbose=0)
+        if verbose:
+            print('Reservoir reconnected.')
 
     def excite(self,
                 u: np.ndarray=None,
@@ -377,13 +404,13 @@ class ESN:
                 inSize = u.shape[0]
                 trainLen = u.shape[-1] if trainLen is None else trainLen
                 # Bias
-                if self.bias is None:
-                    self.bias = bias
+                if self._bias is None:
+                    self._bias = bias
                     self._make_bias_vec()
-                # assert isinstance(self.bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
+                # assert isinstance(self._bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
                 # Input Connection
                 if self.Win is None:
-                    self.Win = kwargs.get("Win",self._generate_Win(inSize))
+                    self.Win = kwargs.get("Win",self.make_connection('Win',size=inSize))
 
             if update_rule_id % 2:  #if y is not None:
                 assert len(y.shape) == 2
@@ -391,7 +418,7 @@ class ESN:
                 trainLen = y.shape[-1] if trainLen is None else trainLen
                 # Feedback Connection
                 if self.Wback is None:
-                    self.Wback = kwargs.get("Wback",self._generate_Wback(outSize))
+                    self.Wback = kwargs.get("Wback",self.make_connection('Wback',size=outSize))
 
                 """Wobbler"""
                 assert isinstance(wobble,bool),"wobble parameter must be boolean."
@@ -461,44 +488,44 @@ class ESN:
         # no u, no y
         if update_rule_id == 0:
             assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-            X = self._tensor(np.zeros((bool(self.bias)+self.resSize,trainLen-initLen),dtype=self.dtype))
+            X = self._tensor(np.zeros((bool(self._bias)+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 1:
                     # training was with no u, yes y. now validation with no u, yes y_pred
-                    X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    X = self._tensor(np.zeros((bool(self._bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
                         X[:,t] =  self._pack_internal_state(None,y_temp)
                         y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
-                    states = X[bool(self.bias)+outSize:,:]
+                    states = X[bool(self._bias)+outSize:,:]
 
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
                     # This is only useful when input data and output data differ by a phase.
-                    X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    X = self._tensor(np.zeros((bool(self._bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
                         X[:,t] = self._pack_internal_state(u_temp)
                         u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])))
-                    states = X[inSize+bool(self.bias):,:] 
+                    states = X[inSize+bool(self._bias):,:] 
 
                 else:
                     # training was with no u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer()
                         X[:,t] = self._pack_internal_state()
-                    states = X[bool(self.bias):,:]
+                    states = X[bool(self._bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer()
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state()
-                states = X[bool(self.bias):,:]
+                states = X[bool(self._bias):,:]
         # no u, yes y
         elif update_rule_id == 1:
-            X = self._tensor(np.zeros((bool(self.bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+            X = self._tensor(np.zeros((bool(self._bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 # no u, yes y
                 y_temp = self._y_train_last
@@ -513,37 +540,37 @@ class ESN:
                         X[:,t-initLen] = self._pack_internal_state(None,y_[:,t-1])
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
-            states = X[outSize+bool(self.bias):,:]
+            states = X[outSize+bool(self._bias):,:]
         # yes u, no y
         elif update_rule_id == 2:
-            X = self._tensor(np.zeros((bool(self.bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+            X = self._tensor(np.zeros((bool(self._bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 3:
                     # yes u, yes y_pred (generative)
-                    X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    X = self._tensor(np.zeros((bool(self._bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
                     y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
                         X[:,t] = self._pack_internal_state(u[:,t],y_temp)
                         y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
-                    states = X[bool(self.bias)+inSize+outSize:,:]
+                    states = X[bool(self._bias)+inSize+outSize:,:]
                 else:
                     # yes u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t])
                         X[:,t] = self._pack_internal_state(u[:,t])
-                    states = X[inSize+bool(self.bias):,:]
+                    states = X[inSize+bool(self._bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(u[:,t],None)
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state(u[:,t])
                 self._inSize = inSize
-                states = X[inSize+bool(self.bias):,:] 
+                states = X[inSize+bool(self._bias):,:] 
         # yes u, yes y
         elif update_rule_id == 3:
             assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
-            X = self._tensor(np.zeros((bool(self.bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+            X = self._tensor(np.zeros((bool(self._bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
@@ -558,7 +585,7 @@ class ESN:
                 self._inSize = inSize
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
-            states = X[inSize+outSize+bool(self.bias):,:]
+            states = X[inSize+outSize+bool(self._bias):,:]
         #?
         else:
             raise NotImplementedError("Could not find a case for this training.")       
@@ -637,7 +664,7 @@ class ESN:
         regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
         self.Wout = self._tensor(regr.coef_)
 
-        # self.bias = self.Wout.shape[-1] - self.resSize
+        # self._bias = self.Wout.shape[-1] - self.resSize
         # if self._inSize is not None:
         #     bias -= self._inSize
         # if self._outSize is not None:
@@ -704,7 +731,7 @@ class ESN:
         
 
         # Bias
-        bias = kwargs.get("bias",self.bias)
+        bias = kwargs.get("bias",self._bias)
 
         # Activations
         f = self._fn_interpreter(kwargs.get("f",self.f))
@@ -722,10 +749,10 @@ class ESN:
             assert self._inSize == u.shape[0], "Please give input consistent with training input."
         if y is not None:
             assert self._outSize == y.shape[0], "Please give output consistent with training output."
-        if self.bias != bias:
-            self.bias = bias
+        if self._bias != bias:
+            self._bias = bias
             self._make_bias_vec()
-            warnings.warn(f"You have used {self.bias} during training but now you are using {bias}.")
+            warnings.warn(f"You have used {self._bias} during training but now you are using {bias}.")
         if self.f != f:
             self.f = f
             warnings.warn(f"You have used {self.f} reservoir activation during training but now you are using {f}.")
@@ -745,7 +772,7 @@ class ESN:
 
         # Wobbler
         wobble = kwargs.get("wobble",False)
-        wobbler = kwargs.get("wobbler",None)
+        wobbler = kwargs.get("wobbler")
         assert self._update_rule_id_train % 2 or not wobble
         assert wobbler is None or wobble
         if wobble and wobbler is None:
@@ -880,7 +907,7 @@ class ESN:
         self.f = self._fn_interpreter(kwargs.get("f",self.f))
         self.f_out = self._fn_interpreter(kwargs.get("f_out",self.f_out))
         self.f_out_inverse = self._fn_interpreter(kwargs.get("f_out_inverse",self.f_out_inverse))
-        self.bias = kwargs.get("bias",self.bias)
+        self._bias = kwargs.get("bias",self._bias)
         self._make_bias_vec()
         self.leak_rate = kwargs.get("leak_rate",self.leak_rate)
         self.leak_version = kwargs.get("leak_version",self.leak_version)
@@ -922,12 +949,12 @@ class ESN:
                     valLen=valLen,
                     f_out=f_out,
                     output_transformer=output_transformer,
-                    bias=kwargs.get("bias_val",self.bias),
+                    bias=kwargs.get("bias_val",self._bias),
                     f=kwargs.get("f_val",self.f),
                     leak_rate=kwargs.get("leak_rate_val",self.leak_rate),
                     leak_version=kwargs.get("leak_version_val",self.leak_version),
                     wobble = kwargs.get("wobble_val",False),
-                    wobbler = kwargs.get("wobbler_val",None)
+                    wobbler = kwargs.get("wobbler_val")
                     )
         
         return pred
@@ -1088,7 +1115,18 @@ class ESN:
                         self.__setattr__(attr_name,self._tensor(attr.copy()))
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
-    
+
+    def make_connection(self,w_name:str,inplace:bool=False,verbose:bool=True,**kwargs) -> Union[np.ndarray,torch.tensor,NoneType]:
+        w = self.__generate_weight(w_name=w_name,size=kwargs.get('size'))
+
+        if verbose:
+            weight_message(w_name,{False:'generated',True:'got replaced'}[inplace])
+
+        if inplace:
+            setattr(self,w_name,w)
+        else:
+            return w
+
     def cpu(self) -> NoneType:
         self.device = 'cpu'
         for val in self.__dict__.values():
@@ -1122,9 +1160,9 @@ class ESN:
 
     def _get_spectral_radius(self):
         if self._os == 'numpy':
-            return abs(linalg.eig(self.W)[0]).max()
+            return abs(np.linalg.eigvals(self.W)).max().real #abs(linalg.eig(self.W)[0]).max()
         elif self._os == 'torch':
-            return torch.linalg.eigvals(self.W).abs().max().item()
+            return torch.linalg.eigvals(self.W.cpu()).abs().max().item()
         else:
             raise Exception("Something is terribly wrong.")
 
@@ -1132,7 +1170,7 @@ class ESN:
         if self._os == 'numpy':
             return np.linalg.svd(self.W,compute_uv=False).max()
         elif self._os == 'torch':
-            return torch.linalg.svdvals(self.W).max().item()
+            return torch.linalg.svdvals(self.W.cpu()).max().item()
         else:
             raise Exception("Something is terribly wrong.")
 
@@ -1154,7 +1192,7 @@ class ESN:
         # no u, yes y
         elif in_ is None and out_ is not None:
             if self.Wback is None:
-                self.Wback = self._generate_Wback(self._atleastND(out_).shape[-2])
+                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
 
             assert self._get_tensor_device(out_) == self.device, (self.device,out_)
             
@@ -1169,27 +1207,26 @@ class ESN:
         # yes u, no y
         elif in_ is not None and out_ is None:
             if self.Win is None:
-                self.Win = self._generate_Win(self._atleastND(in_).shape[-2])
-                print("Win (input weights) generated.")
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
 
             assert self._get_tensor_device(in_) == self.device, (self.device,in_)
 
-            if self.bias:
+            if self._bias:
                 assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+1,[self.Win.shape,in_.shape]
             else:
                 assert self.Win.shape[-1] == self._atleastND(in_).shape[-2],[self.Win.shape,in_.shape]
 
             if leak_version:
-                if self.bias:
+                if self._bias:
                     return (1-leak_rate)*x + \
-                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))))
+                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
                 else:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
             else:
-                if self.bias:
+                if self._bias:
                     return (1-leak_rate)*x + \
-                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))))
+                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
                 else:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
@@ -1197,36 +1234,34 @@ class ESN:
         # yes u, yes y
         elif in_ is not None and out_ is not None:
             if self.Win is None:
-                self.Win = self._generate_Win(self._atleastND(in_).shape[-2])
-                print("Win generated.")
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
             if self.Wback is None:
-                self.Wback = self._generate_Wback(self._atleastND(out_).shape[-2])
-                print("Wback generated.")
+                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[-2])
 
             assert self._get_tensor_device(in_) == self.device , (self.device,in_)
             assert self._get_tensor_device(out_) == self.device, (self.device,out_)
 
             assert self.Wback.shape[-1]==self._atleastND(out_).shape[-2]
-            if self.bias:
+            if self._bias:
                 assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+1,[self.Win.shape,in_.shape]
             else:
                 assert self.Win.shape[-1] == self._atleastND(in_).shape[-2],[self.Win.shape,in_.shape]
 
             if leak_version:
-                if self.bias:
+                if self._bias:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + \
-                                    self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
                 else:
                     return (1-leak_rate)*x + \
                                 self.f(leak_rate*self._mm( self.W, x ) + \
                                     self._mm(self.Win, self._atleastND(in_)) + self._mm(self.Wback, self._atleastND(out_)))
 
             else:
-                if self.bias:
+                if self._bias:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + \
-                                    self._mm(self.Win, self._vstack((self.bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
                 else:
                     return (1-leak_rate)*x + \
                                 leak_rate*self.f(self._mm( self.W, x ) + \
@@ -1235,19 +1270,21 @@ class ESN:
             raise Exception("Something is terribly wrong.")
     
     def _make_bias_vec(self):
-        if self.bias is None:
-            self.bias_vec = None
+        assert self._bias != 0,'Bias equal to zero is forbidden.'
+
+        if self._bias is None:
+            self._bias_vec = None
         else:
             if self._layer_mode == 'single':
-                self.bias_vec  = np.ones((1,1),dtype=self.dtype)*self.bias
+                self._bias_vec  = np.ones((1,1),dtype=self.dtype)*self._bias
             elif self._layer_mode == 'batch':
-                self.bias_vec  = np.ones((1,self.batch_size),dtype=self.dtype)*self.bias
+                self._bias_vec  = np.ones((1,self.batch_size),dtype=self.dtype)*self._bias
             elif self._layer_mode == 'ensemble':
-                self.bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size),dtype=self.dtype)*self.bias
+                self._bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size),dtype=self.dtype)*self._bias
             else:
                 raise Exception(f"Unknown layer mode: {self._layer_mode}.")
             
-            self.bias_vec = self._send_tensor_to_device(self._tensor(self.bias_vec))
+            self._bias_vec = self._send_tensor_to_device(self._tensor(self._bias_vec))
  
     def _make_reservoir_layer(self):
 
@@ -1316,21 +1353,25 @@ class ESN:
         self._make_reservoir_layer()
 
     def _pack_internal_state(self,in_=None,out_=None):
+
+        in_ = self._atleastND(in_)
+        out_ = self._atleastND(out_)
+
         # no u, no y
         if in_ is None and out_ is None:
-            return self._cat((self.bias_vec,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self._bias_vec,self.reservoir_layer)).ravel()
 
         # no u, yes y
         elif in_ is None and out_ is not None:
-            return self._cat((self.bias_vec,out_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self._bias_vec,out_,self.reservoir_layer)).ravel()
 
         # yes u, no y
         elif in_ is not None and out_ is None:
-            return self._cat((self.bias_vec,in_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self._bias_vec,in_,self.reservoir_layer)).ravel()
 
         # yes u, yes y
         elif in_ is not None and out_ is not None:
-            return self._cat((self.bias_vec,in_,out_,self.reservoir_layer.ravel()))#.ravel()
+            return self._cat((self._bias_vec,in_,out_,self.reservoir_layer)).ravel()
     
     def _get_update_rule_id(self,in_=None,out_=None):
         return min(3,(bool(in_ is not None) + 1)*(bool(in_ is not None)+bool(out_ is not None)))
@@ -1357,20 +1398,6 @@ class ESN:
         leak_version_ = leak_version if self.leak_version is None else self.leak_version
         leak_rate_ = leak_rate if self.leak_rate is None else self.leak_rate
         return leak_rate_ , leak_version_
-
-    def _generate_Win(self,inSize):
-        Win = np.random.rand(self.resSize,bool(self.bias)+inSize).astype(self.dtype) - 0.5
-        return self._send_tensor_to_device(self._tensor(Win))
-        # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
-        # self.Win = np.where(Win==0, -1, Win)
-
-    def _generate_W(self):
-        W = np.random.choice(self.__xn, p=self.__pn,size=(self.resSize,self.resSize)).astype(self.dtype)
-        return self._send_tensor_to_device(self._tensor(W))
-
-    def _generate_Wback(self,outSize):
-        Wback = np.random.uniform(-2,2,size=(self.resSize,outSize)).astype(self.dtype)
-        return self._send_tensor_to_device(self._tensor(Wback))
 
     def _fn_interpreter(self,f):
         if isinstance(f,str):
@@ -1452,7 +1479,8 @@ class ESN:
             if W_ is not None:
                 self.__setattr__(W_str,self._tensor(W_).to(self.device))
 
-            self.bias_vec = self._tensor(self.bias_vec).to(self.device)
+            if self._bias_vec is not None:
+                self._bias_vec = self._tensor(self._bias_vec).to(self.device)
             self.reservoir_layer = self._tensor(self.reservoir_layer).to(self.device)
             self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(self.device)
             self._vstack = torch.vstack
@@ -1475,6 +1503,8 @@ class ESN:
     def _send_tensor_to_device(self,x):
         if hasattr(x,'to'):
             return x.to(self.device)
+        else:
+            return x
 
     def __call__(self, in_):
 
@@ -1485,11 +1515,55 @@ class ESN:
         else:
             assert self._update_rule_id_train==2
 
-        if self.bias:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self.bias_vec).transpose(-1,-2))).transpose(-1,-2)
+        if self._bias:
+            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self._bias_vec).transpose(-1,-2))).transpose(-1,-2)
         else:
             self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
         return self._mm(self.Wout,self._U)
+
+    def __generate_weight(self,w_name,size):
+        try:
+            size_str = {'Win':'_inSize','W':'resSize','Wback':'_outSize'}[w_name]
+        except KeyError:
+            if w_name in weight_dict:        
+                raise NotImplementedError(f'Generation of {w_name} is not supported at the moment.')
+            else:
+                raise Exception(f"{w_name} is not a valid weight name. Valid names are {', '.join(weight_dict.keys())}.")
+
+        self_size = getattr(self,size_str)
+
+        if self_size is None:
+            setattr(self,size_str,size)
+        elif w_name == 'W':
+            pass
+        else:
+            assert self_size == size, f'Reservoir has {weight_dict[w_name]} size={self_size} but you have given {weight_dict[w_name]} size={size}.'
+        
+        _size = getattr(self,size_str)
+
+        if w_name == 'Win':
+            assert _size is not None, 'Please provide input size of the reservoir.'
+            w = np.random.rand(self.resSize,bool(self._bias)+_size) - 0.5
+            # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
+            # self.Win = np.where(Win==0, -1, Win)
+        elif w_name == 'W':
+            w = np.random.choice(self.__xn, p=self.__pn,size=(self.resSize,self.resSize))
+        elif w_name == 'Wback':
+            assert _size is not None, 'Please provide output size of the reservoir.'
+            w = np.random.uniform(-2,2,size=(self.resSize,_size))
+
+        return self._send_tensor_to_device(self._tensor(w.astype(self.dtype)))
+
+    def __check_connections(self):
+        assert self.W.shape[0] == self.W.shape[1] == self.resSize
+        if self.Win is not None:
+            assert self.Win.shape[0]==self.W.shape[0],'Input matrix has shape, which is inconsistent with the reservoir matrix.'
+            if self.Wout is not None:
+                assert self.Wout.shape[1] ==self.W.shape[0] + self.Win.shape[1],'Output matrix has shape, which is inconsistent with the reservoir and input matrices.'
+        if self.Wback is not None:
+            assert self.Wback.shape[0]==self.W.shape[0],'Feedback matrix has shape, which is inconsistent with the reservoir matrix.'
+            if self.Wout is not None:
+                assert self.Wback.shape[1]==self.Wout.shape[0],'Feedback matrix has shape, which is inconsistent with the output matrix.'
 
 
 
@@ -1632,7 +1706,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self.bias), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
+        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self._bias), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
@@ -1663,8 +1737,8 @@ class ESNN(ESN,torch.nn.Module):
         #     assert self._update_rule_id_train==2
 
 
-        if self.bias:
-            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self.bias_vec)))
+        if self._bias:
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self._bias_vec)))
         else:
             self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer))
 

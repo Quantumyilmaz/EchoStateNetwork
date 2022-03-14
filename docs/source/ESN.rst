@@ -20,7 +20,6 @@ Echo State Network
 
 
     .. class:: ESN( \
-                            W: np.ndarray=None, \
                             resSize: int=400, \
                             xn: list=[0,0.4,-0.4], \
                             pn: list=[0.9875, 0.00625, 0.00625], \
@@ -32,8 +31,6 @@ Echo State Network
 
     **Parameters**
 
-
-        :``W``: User can provide custom reservoir matrix.
         :``resSize``: Number of units (nodes) in the reservoir.
         :``xn`` , ``pn``: User can provide custom random variable to control the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities.
         :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
@@ -57,7 +54,7 @@ Echo State Network
         :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``Win`` , ``Wout`` , ``Wback``: User can provide custom input, output, feedback matrices.
+        :``W`` , ``Win`` , ``Wout`` , ``Wback``: User can provide custom reservoir, input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
         :``device``: Give ``'cpu'`` if ``use_torch`` is ``True``, CUDA is available on your device but you want to use CPU.
         :``dtype``: Data type of reservoir. Default is float32.
@@ -78,6 +75,22 @@ Scales the reservoir connection matrix to have certain spectral norm or radius.
         :``desired_scaling``: Scales the reservoir matrix to have the desired spectral norm or radius.
         :``reference``: Give ``'ev'`` (eigenvalue) to choose spectral radius, ``'sv'`` (singular value) to choose spectral norm as reference.
 
+
+---------------------------
+ESN.set_bias
+---------------------------
+
+Sets the bias strength.
+
+
+    .. method:: set_bias(strength: float) -> None
+
+
+    **Parameters**
+
+        :``strength``: Set strength of bias in the input, reservoir and readout connections.
+
+
 ---------------------------
 ESN.reconnect_reservoir
 ---------------------------
@@ -85,13 +98,13 @@ ESN.reconnect_reservoir
 Assigns new matrix to the reservoir with redefined connectivity.
 
 
-    .. method:: reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]]) -> None
+    .. method:: reconnect_reservoir(xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None
 
 
     **Parameters**
 
         :``xn`` , ``pn``: User can provide random variable to alter the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities of the random variable.
-
+        :``verbose``: Set to False to mute the messages.
 
 ----------
 ESN.excite
@@ -366,7 +379,7 @@ When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer 
 
 \ \
 
-    .. method:: update_reservoir_layers_serially(self \
+    .. method:: update_reservoir_layers_serially( \
         , in_: Union[np.ndarray, torch.Tensor, NoneType] = None \
         , out_: Union[np.ndarray, torch.Tensor, NoneType] = None \
         , leak_version: int = 0 \
@@ -393,7 +406,7 @@ ESN.reset_reservoir_layer
 
 Resets reservoir layer, i.e. sets the reservoir nodes back to their initial state.
 
-    .. method:: reset_reservoir_layer(self) -> None
+    .. method:: reset_reservoir_layer() -> None
 
 ----------------------------
 ESN.set_reservoir_layer_mode
@@ -448,6 +461,19 @@ Similar to `ESN.copy_from`_ but copies only the connection matrices.
                     By default the connection matrices from the reservoir that is copied from will be written to separate memory.
         :``weights_list``: Give a sublist of the list ``['Wout','W','Win','Wback']`` if you do not want to copy all the connections.
 
+-------------------
+ESN.make_connection
+-------------------
+
+Creates the desired connections of the network.
+
+    .. method:: make_connection(w_name:str,inplace:bool=False,verbose:bool=True,**kwargs) -> Union[np.ndarray,torch.tensor,None]
+
+    **Parameters**
+
+        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
+        :``inplace``: Whether to overwrite the connection.
+        :``verbose``: Set to False to mute the messages.
 
 -------
 ESN.cpu
@@ -455,7 +481,7 @@ ESN.cpu
 
 Sends the reservoir to cpu device.
 
-    .. method:: cpu(self) -> None
+    .. method:: cpu() -> None
 
 
 --------
