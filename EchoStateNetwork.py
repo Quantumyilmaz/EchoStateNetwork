@@ -1681,7 +1681,8 @@ class ESNN(ESN,torch.nn.Module):
 
         self._name = 'ESNN'
 
-        ESN.__init__(resSize=resSize, 
+        ESN.__init__(self,
+                    resSize=resSize, 
                     xn=xn, 
                     pn=pn, 
                     random_state=random_state, 
