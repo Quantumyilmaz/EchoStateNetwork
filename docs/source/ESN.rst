@@ -465,7 +465,7 @@ Similar to `ESN.copy_from`_ but copies only the connection matrices.
 ESN.make_connection
 -------------------
 
-Creates the desired connections of the network.
+Creates the desired connection of the network.
 
     .. method:: make_connection(w_name:str,inplace:bool=False,verbose:bool=True,**kwargs) -> Union[np.ndarray,torch.tensor,None]
 
@@ -473,6 +473,23 @@ Creates the desired connections of the network.
 
         :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
         :``inplace``: Whether to overwrite the connection.
+        :``verbose``: Set to False to mute the messages.
+
+    **Keyword Arguments**
+
+        :``size``: User should provide information on the size associated with the corresponding connection matrix: input size for ``Win``, output size for ``Wback``.
+
+---------------------
+ESN.delete_connection
+---------------------
+
+Deletes the desired connection of the network.
+
+    .. method:: delete_connection(w_name:str,verbose:bool=True) -> None
+
+    **Parameters**
+
+        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
         :``verbose``: Set to False to mute the messages.
 
 -------

@@ -686,7 +686,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 </div>
 <div class="section" id="esn-make-connection">
 <h2>ESN.make_connection<a class="headerlink" href="#esn-make-connection" title="Permalink to this headline">¶</a></h2>
-<p>Creates the desired connections of the network.</p>
+<p>Creates the desired connection of the network.</p>
 <blockquote>
 <div><dl class="py method">
 <dt id="make_connection">
@@ -704,6 +704,36 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 </dd>
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">verbose</span></code></dt>
 <dd class="field-odd"><p>Set to False to mute the messages.</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><strong>Keyword Arguments</strong></p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">size</span></code></dt>
+<dd class="field-odd"><p>User should provide information on the size associated with the corresponding connection matrix: input size for <code class="docutils literal notranslate"><span class="pre">Win</span></code>, output size for <code class="docutils literal notranslate"><span class="pre">Wback</span></code>.</p>
+</dd>
+</dl>
+</div></blockquote>
+</div></blockquote>
+</div>
+<div class="section" id="esn-delete-connection">
+<h2>ESN.delete_connection<a class="headerlink" href="#esn-delete-connection" title="Permalink to this headline">¶</a></h2>
+<p>Deletes the desired connection of the network.</p>
+<blockquote>
+<div><dl class="py method">
+<dt id="delete_connection">
+<code class="sig-name descname">delete_connection</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">w_name</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">verbose</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">True</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#delete_connection" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p><strong>Parameters</strong></p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">w_name</span></code></dt>
+<dd class="field-odd"><p>Name of the connection: <code class="docutils literal notranslate"><span class="pre">'Win'</span></code>,``’W’<code class="docutils literal notranslate"><span class="pre">,</span> <span class="pre">or</span> <span class="pre">``'Wback'</span></code>.</p>
+</dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">verbose</span></code></dt>
+<dd class="field-even"><p>Set to False to mute the messages.</p>
 </dd>
 </dl>
 </div></blockquote>
@@ -793,6 +823,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <li class="toctree-l2"><a class="reference internal" href="#esn-copy-from">ESN.copy_from</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-copy-connections-from">ESN.copy_connections_from</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-make-connection">ESN.make_connection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-delete-connection">ESN.delete_connection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-cpu">ESN.cpu</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-save">ESN.save</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-load">ESN.load</a></li>

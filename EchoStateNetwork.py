@@ -4,6 +4,7 @@
 
 # Documentation: https://echostatenetwork.readthedocs.io/
 
+from tkinter import W
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
@@ -1128,6 +1129,14 @@ class ESN:
             setattr(self,w_name,w)
         else:
             return w
+    
+    def delete_connection(self,w_name:str,verbose:bool=True) -> NoneType:
+        
+        setattr(self,w_name,None)
+        setattr(self,size_dict[w_name],None)
+
+        if verbose:
+            print(f'{weight_dict[w_name].capitalize()} got deleted.')
 
     def cpu(self) -> NoneType:
         self.device = 'cpu'
