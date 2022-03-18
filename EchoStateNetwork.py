@@ -1566,22 +1566,22 @@ class ESN:
         return self._send_tensor_to_device(self._tensor(w.astype(self.dtype)))
 
     def __check_connections(self):
-        assert self.W.shape[0] == self.W.shape[1], 'Reservoir matrix has to be square matrix.'
-        assert self.W.shape[1] == self.resSize, 'Mismatched reservoir size and reservoir weights.'
+        assert self.W.shape[0] == self.W.shape[1], f'Reservoir matrix has to be square matrix: {self.W.shape[0]} != {self.W.shape[1]}'
+        assert self.W.shape[1] == self.resSize, f'Mismatched reservoir size and reservoir weights: {self.W.shape[1]} != {self.resSize}'
         if self.Win is not None:
-            assert self.Win.shape[0] == self.W.shape[0],'Input matrix has shape, which is inconsistent with the reservoir matrix.'
-            assert self.Win.shape[0] == self.resSize, 'Mismatched reservoir size and input weights.'
-            assert self.Win.shape[1] == self._inSize, 'Mismatched input size and input weights.'
+            assert self.Win.shape[0] == self.W.shape[0], f'Input matrix has shape, which is inconsistent with the reservoir matrix: {self.Win.shape[0]} != {self.W.shape[0]}'
+            assert self.Win.shape[0] == self.resSize, f'Mismatched reservoir size and input weights: {self.Win.shape[0]} != {self.resSize}'
+            assert self.Win.shape[1] == self._inSize + bool(self._bias), f'Mismatched input size and input weights: {self.Win.shape[1]} != {self._inSize + bool(self._bias)}'
             if self.Wout is not None:
-                assert self.Wout.shape[1] ==self.W.shape[0] + self.Win.shape[1],'Output matrix has shape, which is inconsistent with the reservoir and input matrices.'
-                assert self.Wout.shape[0] == self._outSize, 'Mismatched output size and output weights.'
+                assert self.Wout.shape[1] ==self.W.shape[0] + self.Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self.Wout.shape[1]} != {self.W.shape[0] + self.Win.shape[1]}'
+                assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
         if self.Wback is not None:
-            assert self.Wback.shape[0] == self.W.shape[0],'Feedback matrix has shape, which is inconsistent with the reservoir matrix.'
-            assert self.Wback.shape[0] == self.resSize, 'Mismatched reservoir size and feedback weights.'
-            assert self.Wback.shape[1] == self._outSize, 'Mismatched output size and feedback weights.'
+            assert self.Wback.shape[0] == self.W.shape[0],f'Feedback matrix has shape, which is inconsistent with the reservoir matrix: {self.Wback.shape[0]} != {self.W.shape[0]}'
+            assert self.Wback.shape[0] == self.resSize, f'Mismatched reservoir size and feedback weights: {self.Wback.shape[0]} != {self.resSize}'
+            assert self.Wback.shape[1] == self._outSize, f'Mismatched output size and feedback weights: {self.Wback.shape[1]} != {self._outSize}'
             if self.Wout is not None:
-                assert self.Wout.shape[0] == self.Wback.shape[1],'Feedback matrix has shape, which is inconsistent with the output matrix.'
-                assert self.Wout.shape[0] == self._outSize, 'Mismatched output size and output weights.'
+                assert self.Wout.shape[0] == self.Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self.Wout.shape[0]} != {self.Wback.shape[1]}'
+                assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
 
 
 
