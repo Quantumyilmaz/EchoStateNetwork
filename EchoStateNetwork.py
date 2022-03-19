@@ -227,6 +227,8 @@ class ESN:
         if self.W is None:
             self.resSize = resSize
             self.W = self.make_connection('W')
+        else:
+            assert self.resSize == resSize, 'Specified reservoir size and the reservoir matrix are incompatible.'
 
         self.__check_connections()
 
