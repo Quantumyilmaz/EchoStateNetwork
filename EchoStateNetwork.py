@@ -666,6 +666,7 @@ class ESN:
             y_ = y
 
         self.reg_X = kwargs.get("reg_X",self.reg_X)
+        assert self.reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
         regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
         self.Wout = self._tensor(regr.coef_)
 
