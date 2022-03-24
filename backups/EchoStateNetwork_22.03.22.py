@@ -7,7 +7,7 @@
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 import torch
 import pandas as pd
 # from functools import reduce
@@ -73,7 +73,7 @@ def is_normal(x):
     if isinstance(x,torch.Tensor):
         return torch.all(torch.matmul(x,x.T.conj())==torch.matmul(x.T.conj(),x))
     elif isinstance(x,np.ndarray):
-        return np.all(np.matmul(x,x.T.conj())==np.matmul(x.T.conj(),x))
+        return np.all(np.dot(x,x.T.conj())==np.dot(x.T.conj(),x))
     else:
         raise Exception(f"Unsupported array type.")
 
@@ -89,18 +89,6 @@ def is_normal(x):
 # print(A @ B)
 
 class ESN:
-
-    __settable = { 'bias':
-                        {'name':'_bias','default':None},
-                    'leak_rate':
-                        {'name':'_leak_rate','default':1},
-                    'leak_version':
-                        {'name':'_leak_version','default':0},
-                    'f':    
-                        {'name':'_f','default':'id'},
-                    'f_out':
-                        {'name':'_f_out','default':'id'}
-                    }
 
     """
     DOCUMENTATION
@@ -159,13 +147,6 @@ class ESN:
 
     """
 
-    # def updates_reservoir_layer(func):
-    #     def wrapper(self,*args,**kwargs):
-    #         print("Something is happening before the function is called.")
-    #         func(self,*args,**kwargs)
-    #         print("Something is happening after the function is called.")
-    #     return wrapper
-
     def __init__(self,
                 resSize: int=400,
                 xn: list=[0,0.4,-0.4],
@@ -198,34 +179,26 @@ class ESN:
             - keyword agruments:
                 
                 - verbose: Mute the initialization message.
-                - f: Custom activation function of the reservoir. Default is identity.
-                - f_out: Custom output activation. Default is identity.
-                - leak_rate: Leak parameter in Leaky Integrator ESN (LiESN). Default is 1.
+                - f: User can provide custom activation function of the reservoir. It will be the fixed activation function of the reservoir. It can also be defined in training if not here.
+                - leak_rate: Leak parameter in Leaky Integrator ESN (LiESN).
                 - leak_version: Give 0 for Jaeger's recursion formula, give 1 for recursion formula in ESNRLS paper.
-                - bias: Strength of bias. Disabled per default.
+                - bias: Strength of bias. 0 to disable.
                 - W,Win,Wout,Wback
                 - use_torch: Use pytorch instead of numpy. Will use cuda if available.
-                - dtype: Data type of reservoir. Default is float64.
+                - dtype: Data type of reservoir. Default is float32.
         """
 
         verbose = kwargs.get("verbose",True)
         use_torch = kwargs.get("use_torch",False)
-
-        self.dtype = kwargs.get('dtype','float64')
+        self.dtype = kwargs.get('dtype','float32')
         self.device = 'cpu'
-        self._mm = np.matmul if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
-        self._U = None
-        self._layer_mode = 'single' #batch, ensemble
-        self._atleastND = at_least_2d
-        self._os = 'numpy'
+        self._mm = np.dot if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self.__xn = xn
         self.__pn = pn
         if not hasattr(self,'_name'):
-            self.__name = 'ESN'
+            self._name = 'ESN'
 
-        for settable in self.__settable:
-            default_value = self.__settable[settable]['default']
-            self.set(settable, kwargs.get(settable,default_value),verbose=verbose)
+        self._bias = kwargs.get("bias")
 
         self._random_state = random_state
         if self._random_state:
@@ -235,7 +208,7 @@ class ESN:
 
         for w_name in weight_dict:
             w = kwargs.get(w_name)
-            self.__setattr__(w_name,w)
+            setattr(self,w_name,w)
             size_str = size_dict[w_name]
             size_info = None
 
@@ -248,7 +221,7 @@ class ESN:
                 if w_name == 'Win':
                     size_info -= bool(self._bias)
 
-            self.__setattr__(size_str,size_info)
+            setattr(self,size_str,size_info)
         
         if self.W is None:
             self.resSize = resSize
@@ -266,27 +239,35 @@ class ESN:
             self._core_nodes = custom_initState.copy()
             self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
         
+        self._U = None
         self._reservoir_layer_init = self.reservoir_layer.copy()
+        self._layer_mode = 'single' #batch, ensemble
+        self._make_bias_vec()
+        self._atleastND = at_least_2d
 
+        self._os = 'numpy'
         if use_torch:
             # torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
-        self._update_rule_id_train = None
-        self._update_rule_id_val = None
-        self._initLen = None
+        self.leak_rate = kwargs.get("leak_rate")
+        self.leak_version = kwargs.get("leak_version")
         self.states = None
         self.val_states = None
-        self.training_type = None
-        self.validation_type = None
+        self._update_rule_id_train = None
+        self._update_rule_id_val = None
+        self.f = self._fn_interpreter(kwargs.get("f"))
+        self.f_out = None
+        self.f_out_inverse = None
+        self.output_transformer = None
         self.reg_X = None
         self._X_val = None
 
         self.spectral_radius = self._get_spectral_radius()
         self.spectral_norm = self._get_spectral_norm()
         if verbose:
-            print(f'{self.__name} generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
+            print(f'{self._name} generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
 
         self.no_of_reservoirs = None
         self.batch_size = None
@@ -326,43 +307,10 @@ class ESN:
         
         self.W = self._send_tensor_to_device(self.W)
 
-    def set(self,prop:str,val:Union[int,float,Callable,bool],verbose:bool=True) -> None:
-        
-        prop = prop.lower()
-        assert prop in self.__settable, f'{prop} is not settable.'
-        _prop = self.__settable[prop]['name']
-        if not hasattr(self,_prop):
-            warn = False
-        else:
-            warn = False if getattr(self,_prop) is None else True
-
-        if prop == 'f' or prop == 'f_out':
-            val = self._fn_interpreter(val)
-        elif prop == 'leak_rate':
-            assert 0<=val<=1, 'Leak rate must lie in the interval [0,1].'
-        elif prop == 'leak_version':
-            assert [0,1].count(val), 'Leak version must be 0 or 1.'
-        elif prop == 'bias':
-            if warn is False:
-                assert not hasattr(self,_prop) or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
-
-        if verbose:
-            if warn:
-                assert val is not None, f'{prop} cannot be set to None.'
-                warnings.warn(f"You have already been using {getattr(self,_prop)} as {prop}. It has been changed to {val}.")
-            else:
-                if val is not None:
-                    print(f'{prop} has been set to {val}.')
-
-        self.__setattr__(_prop,val)
-
-        if prop == 'bias':
-            self._make_bias_vec()
-
-    def get(self,prop:str):
-        prop = prop.lower()
-        assert prop in self.__settable, f'{prop} is not gettable.'
-        return self.__getattribute__(prop)
+    def set_bias(self,strength:float):
+        assert self._bias is not None,'Cannot change bias strength since the reservoir was initialized with bias disabled. Please reinitialize using bias=True.'
+        self._bias = strength
+        self._make_bias_vec()
 
     def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None:
         self.__xn = xn
@@ -374,6 +322,10 @@ class ESN:
     def excite(self,
                 u: np.ndarray=None,
                 y: np.ndarray=None,
+                bias: Union[int,float]=None,
+                f: Union[str,Any]=None,
+                leak_rate: Union[int,float]=None,
+                leak_version: int=0,
                 initLen: int=None, 
                 trainLen: int=None,
                 initTrainLen_ratio: float=None,
@@ -393,6 +345,11 @@ class ESN:
 
             - y: To be predicted. Has shape [...,time].
 
+            - bias: enables bias in the input, reservoir and readout connections.
+
+            - f: User can provide custom activation function. Default is None. Available activations: 'tanh','relu', 'sigmoid'. For leaky relu activation, write 'leaky_{leaky rate}', e.g. 'leaky_0.5'.
+
+            - leak_rate: leaking rate in x(n) = (1-leak_rate)*x(n-1) + leak_rate*f(...) . Default None.
 
             - initLen: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. 
             Will be set to an eighth of the training length if not provided.
@@ -406,8 +363,12 @@ class ESN:
 
             - wobbler: User can provide custom noise. Default is np.random.uniform(-1,1)/10000.
 
+            - leak_version: Set to 0 for Jaeger's recursion formula, set to 1 for recursion formula in ESNRLS paper. Default: 0
+
             - keyword arguments:
 
+                - Win: custom input weights
+                - Wback: custom feedback weights
                 - validation_mode: You can use this method in validation mode after calling this method to prepare the reservoir for validation.
         """
 
@@ -430,9 +391,6 @@ class ESN:
 
         #Handling I/O
 
-        inSize = 0
-        outSize = 0
-
         if not validation_mode:
             if self._update_rule_id_train is None:
                 self._update_rule_id_train = update_rule_id
@@ -449,11 +407,22 @@ class ESN:
                 assert len(u.shape) == 2
                 inSize = u.shape[0]
                 trainLen = u.shape[-1] if trainLen is None else trainLen
+                # Bias
+                if self._bias is None:
+                    self._bias = bias
+                    self._make_bias_vec()
+                # assert isinstance(self._bias,(int,float)), "You did not specify bias strength neither at reservoir initialization nor when calling 'excite' method."
+                # Input Connection
+                if self.Win is None:
+                    self.Win = kwargs.get("Win",self.make_connection('Win',size=inSize))
 
             if update_rule_id % 2:  #if y is not None:
                 assert len(y.shape) == 2
                 outSize = y.shape[0]
                 trainLen = y.shape[-1] if trainLen is None else trainLen
+                # Feedback Connection
+                if self.Wback is None:
+                    self.Wback = kwargs.get("Wback",self.make_connection('Wback',size=outSize))
 
                 """Wobbler"""
                 assert isinstance(wobble,bool),"wobble parameter must be boolean."
@@ -471,12 +440,12 @@ class ESN:
             if self._update_rule_id_val is None:
                 self._update_rule_id_val = update_rule_id
             else:
-                warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are switching to validation of type {new_val_type}.")
+                warnings.warn(f"You have already performed validation of type {self.val_type} with this reservoir. Now you are switching to validation of type {new_val_type}.")
                 #assert self._update_rule_id_val == update_rule_id
             
-            self.validation_type = new_val_type
+            self.val_type = new_val_type
 
-            if self.validation_type == validation_rule_dict[0][0]:
+            if self.val_type == validation_rule_dict[0][0]:
                 warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
 
             if (self._update_rule_id_train - update_rule_id) == 1 and update_rule_id%2 == 0:
@@ -485,9 +454,9 @@ class ESN:
                 pass
             else:
                 assert self._update_rule_id_train == update_rule_id \
-                    ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.validation_type} mode."
-            inSize = 0 if self._inSize is None else self._inSize
-            outSize = 0 if self._outSize is None else self._outSize
+                    ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.val_type} mode."
+            inSize = self._inSize
+            outSize = self._outSize
 
 
 
@@ -496,42 +465,71 @@ class ESN:
         if initLen is None:
             initLen = trainLen//initTrainLen_ratio if initTrainLen_ratio else trainLen//8
         assert initLen >= 1 or validation_mode
-        self._initLen = initLen
+        self.initLen = initLen
+
+        # Leaking Rate
+        if self.leak_rate is None:
+            self.leak_rate = leak_rate
+        assert isinstance(self.leak_rate,(int,float)), "You did not specify leaking rate neither at reservoir initialization nor when calling 'excite' method."
+
+        # Leaking Version
+        if self.leak_version is None:
+            self.leak_version = leak_version
+        assert self.leak_version is not None, "You did not specify leak version neither at reservoir initialization nor when calling 'excite' method."
+        assert [0,1].count(self.leak_version), "Leak version must be either 0 or 1."
+
+        # Activation Function
+        if self.f is None:
+            self.f = self._fn_interpreter(f)
+        assert self.f is not None, "You did not specify reservoir activation neither at reservoir initialization nor when calling 'excite' method."
 
         # Exciting the reservoir states
-        assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-        X = self._tensor(np.zeros((bool(self._bias)+self.resSize + inSize + outSize,trainLen-initLen),dtype=self.dtype))
+        if self._mm == torch.mm:
+            assert isinstance(y_,(torch.Tensor,NoneType)) and isinstance(u,(torch.Tensor,NoneType))
+
+        assert trainLen is not None
 
         # no u, no y
         if update_rule_id == 0:
+            assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
+            X = self._tensor(np.zeros((bool(self._bias)+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 1:
                     # training was with no u, yes y. now validation with no u, yes y_pred
-                    y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    X = self._tensor(np.zeros((bool(self._bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
                         X[:,t] =  self._pack_internal_state(None,y_temp)
-                        y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
+                        y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
+                    states = X[bool(self._bias)+outSize:,:]
+
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
                     # This is only useful when input data and output data differ by a phase.
-                    u_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    X = self._tensor(np.zeros((bool(self._bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
                         X[:,t] = self._pack_internal_state(u_temp)
-                        u_temp = self._f_out(self._mm(self.Wout, X[:,t]))
+                        u_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])))
+                    states = X[inSize+bool(self._bias):,:] 
+
                 else:
                     # training was with no u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer()
                         X[:,t] = self._pack_internal_state()
+                    states = X[bool(self._bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer()
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state()
+                states = X[bool(self._bias):,:]
         # no u, yes y
         elif update_rule_id == 1:
+            X = self._tensor(np.zeros((bool(self._bias)+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 # no u, yes y
                 y_temp = self._y_train_last
@@ -546,30 +544,37 @@ class ESN:
                         X[:,t-initLen] = self._pack_internal_state(None,y_[:,t-1])
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
+            states = X[outSize+bool(self._bias):,:]
         # yes u, no y
         elif update_rule_id == 2:
+            X = self._tensor(np.zeros((bool(self._bias)+inSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 if self._update_rule_id_train == 3:
                     # yes u, yes y_pred (generative)
-                    y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    X = self._tensor(np.zeros((bool(self._bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
+                    y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, self.reg_X[:,-1])))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
                         X[:,t] = self._pack_internal_state(u[:,t],y_temp)
-                        y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
+                        y_temp = self.output_transformer(self.f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t])
+                    states = X[bool(self._bias)+inSize+outSize:,:]
                 else:
                     # yes u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t])
                         X[:,t] = self._pack_internal_state(u[:,t])
+                    states = X[inSize+bool(self._bias):,:]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(u[:,t],None)
                     if t >= initLen:
                         X[:,t-initLen] = self._pack_internal_state(u[:,t])
                 self._inSize = inSize
+                states = X[inSize+bool(self._bias):,:] 
         # yes u, yes y
         elif update_rule_id == 3:
             assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
+            X = self._tensor(np.zeros((bool(self._bias)+inSize+outSize+self.resSize,trainLen-initLen),dtype=self.dtype))
             if validation_mode:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
@@ -584,12 +589,12 @@ class ESN:
                 self._inSize = inSize
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
+            states = X[inSize+outSize+bool(self._bias):,:]
         #?
         else:
             raise NotImplementedError("Could not find a case for this training.")       
 
         
-        states = X[inSize+outSize+bool(self._bias):,:]
         assert states.shape[0] == self.resSize
         if validation_mode:
             self.val_states = states
@@ -653,15 +658,24 @@ class ESN:
                 regr = Ridge(ridge_param, fit_intercept=False,solver=solver)
             else:
                 regr = LinearRegression(fit_intercept=False)
-        
-        if f_out_inverse is None:
-            assert self.__f_out_name == 'id', 'It seems that you are using an output activation, which is not the identity. Please provide the inverse of the activation, which is needed for the regression. In case you are using the identity function, please avoid passing it in as argument. Output activation is by default the identity.'
-        y_ = y if f_out_inverse is None else self._fn_interpreter(f_out_inverse)(y)
+        if f_out_inverse is not None:
+            self.f_out_inverse = f_out_inverse
+            y_ = f_out_inverse(y)
+        else:
+            y_ = y
 
         self.reg_X = kwargs.get("reg_X",self.reg_X)
         assert self.reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
         regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
         self.Wout = self._tensor(regr.coef_)
+
+        # self._bias = self.Wout.shape[-1] - self.resSize
+        # if self._inSize is not None:
+        #     bias -= self._inSize
+        # if self._outSize is not None:
+        #     bias -= self._outSize
+
+        # assert bias == 1 or bias == 0, bias
 
         if error_measure == "mse":
             error = mse(y_,self._mm( self.Wout , self.reg_X))
@@ -681,6 +695,8 @@ class ESN:
                 u: np.ndarray=None,
                 y: np.ndarray=None,
                 valLen: int=None,
+                f_out=lambda x:x,
+                output_transformer=lambda x:x,
                 **kwargs) -> np.ndarray:
 
         """
@@ -696,9 +712,16 @@ class ESN:
         - valLen: Validation length. If u or y is provided it is not needed to be set. Mostly necessary for when neither u nor y is present.
 
         - f_out: Custom output activation. Default is identity.
+
+        - output_transformer: Transforms the reservoir outputs at the very end. Default is identity.
         
         - keyword arguments:
 
+            - bias: Enables bias in the input, reservoir and readout connections. Default is the one used in training
+
+            - f: User can provide custom reservoir activation function. Default is the one used in training.
+
+            - leak_rate: Leaking rate in x(n) = (1-leak_rate)*x(n-1) + leak_rate*f(...) .Default is the leak_rate used in training.
 
             - wobble: For enabling random noise. Default is False.
 
@@ -709,12 +732,41 @@ class ESN:
         assert self.Wout is not None
         assert isinstance(u,(np.ndarray,torch.Tensor,NoneType)) and isinstance(y,(np.ndarray,torch.Tensor,NoneType)), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
 
-        assert u is not None or y is not None or valLen is not None, 'valLen is needed to know how many steps the reservoir should generate outputs.'
+        assert u is not None or y is not None or valLen is not None
+        
+
+        # Bias
+        bias = kwargs.get("bias",self._bias)
+
+        # Activations
+        f = self._fn_interpreter(kwargs.get("f",self.f))
+
+        self.f_out = f_out
+        self.output_transformer = output_transformer
+
+        # Leaking Rate
+        leak_rate = kwargs.get("leak_rate",self.leak_rate)
+
+        # Leaking Rate
+        leak_version = kwargs.get("leak_version",self.leak_version)
         
         if u is not None:
             assert self._inSize == u.shape[0], "Please give input consistent with training input."
         if y is not None:
             assert self._outSize == y.shape[0], "Please give output consistent with training output."
+        if self._bias != bias:
+            self._bias = bias
+            self._make_bias_vec()
+            warnings.warn(f"You have used {self._bias} during training but now you are using {bias}.")
+        if self.f != f:
+            self.f = f
+            warnings.warn(f"You have used {self.f} reservoir activation during training but now you are using {f}.")
+        if self.leak_rate != leak_rate:
+            self.leak_rate = leak_rate
+            warnings.warn(f"You have used leaking rate {self.leak_rate} during training but now you are using {leak_rate}.")
+        if self.leak_version != leak_version:
+            self.leak_version = leak_version
+            warnings.warn(f"You have used leak version: {self.leak_version} during training but now you are using leak version: {leak_version}.")
 
         if u is not None:
             valLen = u.shape[-1]
@@ -737,7 +789,7 @@ class ESN:
 
         self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True)
 
-        return self._f_out(self._mm(self.Wout, self._X_val))
+        return self.output_transformer(self.f_out(self._mm(self.Wout, self._X_val)))
 
     def session(self,
                 X_t: np.ndarray=None,
@@ -745,7 +797,11 @@ class ESN:
                 X_v: np.ndarray=None,
                 y_v: np.ndarray=None,
                 training_data: np.ndarray=None,
+                bias: int=None,
+                f=None,
                 f_out_inverse=None,
+                f_out=lambda x:x,
+                output_transformer=lambda x:x,
                 initLen: int=None, 
                 initTrainLen_ratio: float=None,
                 trainLen: int=None,
@@ -783,6 +839,9 @@ class ESN:
             
             - f_out_inverse: Please give the INVERSE activation function. User can give custom output activation. No activation is used by default.
             
+            - f_out: Custom output activation. Default is identity.
+
+            - output_transformer: Transforms the reservoir outputs at the very end. Default is identity.
 
             - initLen: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. 
             Will be set to an eighth of the training length if not provided.
@@ -804,6 +863,26 @@ class ESN:
 
             - keyword arguments:
 
+                - Win: Custom input weights.
+
+                - Wback: Custom output feedback weights.
+
+                - f: User can provide custom reservoir activation function.
+                
+                - bias: Enables bias in the input, reservoir and readout connections.
+
+                - bias_val: Enables bias in the input, reservoir and readout connections. Default is bias used in training.
+
+                - f_val: User can provide custom reservoir activation function. Default is activation used in training.
+
+                - leak_rate: Leaking rate in x(n) = (1-leak_rate)*x(n-1) + leak_rate*f(...).
+
+                - leak_rate_val: Leaking rate in x(n) = (1-leak_rate)*x(n-1) + leak_rate*f(...) during validation. Default is leak_rate used in training.
+                
+                - leak_version: Give 0 for Jaeger's recursion formula, give 1 for recursion formula in ESNRLS paper.
+                
+                - leak_version_val: Leaking version for validation. Default is the one used in training.
+
                 - wobble_val: For enabling random noise. Default is False.
                 
                 - wobbler_val: User can provide custom noise. Disabled per default.
@@ -823,11 +902,21 @@ class ESN:
 
         self.reg_X = None
         self._X_val = None
+        self.Win = kwargs.get("Win",self.Win)
         self.Wout = None
+        self.Wback = kwargs.get("Wback",self.Wback)
         self.states = None
         self.val_states = None
         self._update_rule_id_train = None
         self._update_rule_id_val = None
+        self.f = self._fn_interpreter(kwargs.get("f",self.f))
+        self.f_out = self._fn_interpreter(kwargs.get("f_out",self.f_out))
+        self.f_out_inverse = self._fn_interpreter(kwargs.get("f_out_inverse",self.f_out_inverse))
+        self._bias = kwargs.get("bias",self._bias)
+        self._make_bias_vec()
+        self.leak_rate = kwargs.get("leak_rate",self.leak_rate)
+        self.leak_version = kwargs.get("leak_version",self.leak_version)
+        self.output_transformer = self._fn_interpreter(kwargs.get("output_transformer",self.output_transformer))
 
         if custom_initState is None:
             self.reservoir_layer = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
@@ -835,7 +924,7 @@ class ESN:
             assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
             self.reservoir_layer = custom_initState
 
-        if self._mm != np.matmul:
+        if self._mm != np.dot:
             self._torchify()
 
         self.excite(u=X_t,
@@ -847,7 +936,7 @@ class ESN:
                     wobbler=wobbler_train
                     )
         
-        self.reg_fit(y=training_data[:,self._initLen:],
+        self.reg_fit(y=training_data[:,self.initLen:],
                     f_out_inverse=f_out_inverse,
                     regr=regr,
                     reg_type=reg_type,
@@ -863,6 +952,12 @@ class ESN:
         pred = self.validate(u=X_v,
                     y=y_v,
                     valLen=valLen,
+                    f_out=f_out,
+                    output_transformer=output_transformer,
+                    bias=kwargs.get("bias_val",self._bias),
+                    f=kwargs.get("f_val",self.f),
+                    leak_rate=kwargs.get("leak_rate_val",self.leak_rate),
+                    leak_version=kwargs.get("leak_version_val",self.leak_version),
                     wobble = kwargs.get("wobble_val",False),
                     wobbler = kwargs.get("wobbler_val")
                     )
@@ -876,21 +971,28 @@ class ESN:
     def update_reservoir_layer(
         self,in_:Union[np.ndarray,torch.Tensor,NoneType]=None
         ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None
+        ,leak_version:int = 0
+        ,leak_rate=1.
         ,mode:Optional[str]=None) -> NoneType:
         """
         - in_: input array
         - out_: output array
+        - leak_version: Set to 0 for Jaeger's recursion formula, set to 1 for recursion formula in ESNRLS paper.
+        - leak_rate: Set to 0<leak_rate<1 Leaky Integrator ESN. Default is *not* Leaky Integrator ESN.
         - mode: Optional. Set to 'train' if you are updating the reservoir layer for training purposes. Set to 'val' if you are doing so for validation purposes. \
                 This will allow the ESN to name the training/validation modes, which can be accessed from 'training_type' and 'val_type' attributes.
         """
-        
         self._update_rule_id_check(in_,out_,mode)
 
-        self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_)
+        leak_rate_ , leak_version_ = self._get_leak(leak_rate,leak_version)
+
+        self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_,leak_version=leak_version_,leak_rate=leak_rate_)
 
     def update_reservoir_layers_serially(self
         , in_: Union[np.ndarray, torch.Tensor, NoneType] = None
         , out_: Union[np.ndarray, torch.Tensor, NoneType] = None
+        , leak_version: int = 0
+        , leak_rate=1   
         , mode: Optional[str] = None
         ,init_size: int = 0) -> NoneType:
 
@@ -904,6 +1006,8 @@ class ESN:
             raise NotImplementedError
 
         self._update_rule_id_check(in_,out_,mode)
+
+        leak_rate_ , leak_version_ = self._get_leak(leak_rate,leak_version)
 
         layer_mode = self._layer_mode
 
@@ -929,10 +1033,12 @@ class ESN:
             
         assert self._atleastND(in_).shape[-1] == batch_size + init_size, [in_.shape,batch_size,init_size]
 
-        res_layer_temp[...,0] = self._get_update(self.reservoir_layer,self._atleastND(in_)[...,0],out_)[...,-1]
+        res_layer_temp[...,0] = self._get_update(self.reservoir_layer,self._atleastND(in_)[...,0]
+                                                    ,out_,leak_version_,leak_rate_)[...,-1]
         
         for i in range(1,self.batch_size + init_size):
-            res_layer_temp[...,i] = self._get_update(res_layer_temp[...,i-1:i],self._atleastND(in_)[...,i],out_)[...,-1]
+            res_layer_temp[...,i] = self._get_update(res_layer_temp[...,i-1:i],self._atleastND(in_)[...,i]
+                                                    ,out_,leak_version_,leak_rate_)[...,-1]
 
         if self._layer_mode == 'ensemble':
             self.set_reservoir_layer_mode('single') #(resSize,1)
@@ -944,7 +1050,7 @@ class ESN:
         self.reservoir_layer = res_layer_temp[...,init_size:]
 
     def reset_reservoir_layer(self) -> NoneType:
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             self.reservoir_layer = self._reservoir_layer_init.copy()
         else:
             self.reservoir_layer = self._reservoir_layer_init.clone()
@@ -1010,7 +1116,7 @@ class ESN:
                 if isinstance(attr,NoneType) or bind:
                     self.__setattr__(attr_name,attr)
                 else:
-                    if reservoir._mm == np.matmul:
+                    if reservoir._mm == np.dot:
                         self.__setattr__(attr_name,self._tensor(attr.copy()))
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
@@ -1022,14 +1128,14 @@ class ESN:
             weight_message(w_name,{False:'generated',True:'got replaced'}[inplace])
 
         if inplace:
-            self.__setattr__(w_name,w)
+            setattr(self,w_name,w)
         else:
             return w
     
     def delete_connection(self,w_name:str,verbose:bool=True) -> NoneType:
         
-        self.__setattr__(w_name,None)
-        self.__setattr__(size_dict[w_name],None)
+        setattr(self,w_name,None)
+        setattr(self,size_dict[w_name],None)
 
         if verbose:
             print(f'{weight_dict[w_name].capitalize()} got deleted.')
@@ -1084,27 +1190,20 @@ class ESN:
     def _get_update(self
                     ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
                     ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
-                    ):
+                    ,leak_version:int = 0
+                    ,leak_rate: float = 1):
 
-        if self._os == 'torch':
-            assert isinstance(in_,(torch.Tensor,NoneType)) and isinstance(out_,(torch.Tensor,NoneType)), 'Please give pytorch tensors.'
+        assert self.f is not None, 'Please specify the reservoir activation function.'
+
+        assert [0,1].count(leak_version)
 
         assert self.W.shape[-1]==x.shape[-2], [self.W.shape,x.shape]
-        resPart = self._f(self._mm( self.W, x ))
-        inPart = 0
-        outPart = 0
 
-        if in_ is not None:
-            assert self._get_tensor_device(in_) == self.device, (self.device,in_)
-            if self.Win is None:
-                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
-            assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+bool(self._bias),[self.Win.shape,in_.shape]
-            if self._bias is not None:
-                inPart = self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_))))
-            else:
-                inPart = self._mm(self.Win, self._atleastND(in_))
-
-        if out_ is not None:
+        # no u, no y
+        if in_ is None and out_ is None:
+            return (1-leak_rate)*x + leak_rate*self.f(self._mm( self.W, x ))    
+        # no u, yes y
+        elif in_ is None and out_ is not None:
             if self.Wback is None:
                 self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
 
@@ -1112,21 +1211,79 @@ class ESN:
             
             assert self.Wback.shape[1]==self._atleastND(out_).shape[0]
 
-            outPart = self._mm(self.Wback, self._atleastND(out_))
+            if leak_version:
+                return (1-leak_rate)*x + \
+                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Wback, self._atleastND(out_)))
+            else:
+                return (1-leak_rate)*x + \
+                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Wback, self._atleastND(out_)))
+        # yes u, no y
+        elif in_ is not None and out_ is None:
+            if self.Win is None:
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
 
+            assert self._get_tensor_device(in_) == self.device, (self.device,in_)
 
-        if self._leak_version == 1:
-            resPart *= self._leak_rate
-            fullPart = self._f(resPart + inPart + outPart)
-        elif self._leak_version == 0:
-            fullPart = self._leak_rate * self._f(resPart + inPart + outPart)
+            if self._bias:
+                assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+1,[self.Win.shape,in_.shape]
+            else:
+                assert self.Win.shape[-1] == self._atleastND(in_).shape[-2],[self.Win.shape,in_.shape]
+
+            if leak_version:
+                if self._bias:
+                    return (1-leak_rate)*x + \
+                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
+                else:
+                    return (1-leak_rate)*x + \
+                                self.f(leak_rate*self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
+            else:
+                if self._bias:
+                    return (1-leak_rate)*x + \
+                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))))
+                else:
+                    return (1-leak_rate)*x + \
+                                leak_rate*self.f(self._mm( self.W, x ) + self._mm(self.Win, self._atleastND(in_)))
+
+        # yes u, yes y
+        elif in_ is not None and out_ is not None:
+            if self.Win is None:
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
+            if self.Wback is None:
+                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[-2])
+
+            assert self._get_tensor_device(in_) == self.device , (self.device,in_)
+            assert self._get_tensor_device(out_) == self.device, (self.device,out_)
+
+            assert self.Wback.shape[-1]==self._atleastND(out_).shape[-2]
+            if self._bias:
+                assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+1,[self.Win.shape,in_.shape]
+            else:
+                assert self.Win.shape[-1] == self._atleastND(in_).shape[-2],[self.Win.shape,in_.shape]
+
+            if leak_version:
+                if self._bias:
+                    return (1-leak_rate)*x + \
+                                self.f(leak_rate*self._mm( self.W, x ) + \
+                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                else:
+                    return (1-leak_rate)*x + \
+                                self.f(leak_rate*self._mm( self.W, x ) + \
+                                    self._mm(self.Win, self._atleastND(in_)) + self._mm(self.Wback, self._atleastND(out_)))
+
+            else:
+                if self._bias:
+                    return (1-leak_rate)*x + \
+                                leak_rate*self.f(self._mm( self.W, x ) + \
+                                    self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_)))) + self._mm(self.Wback, self._atleastND(out_)))
+                else:
+                    return (1-leak_rate)*x + \
+                                leak_rate*self.f(self._mm( self.W, x ) + \
+                                    self._mm(self.Win, self._atleastND(in_)) + self._mm(self.Wback, self._atleastND(out_)))
         else:
-            raise Exception('Unknown leak version.')
-        
-        return (1-self._leak_rate)*x + fullPart
+            raise Exception("Something is terribly wrong.")
     
     def _make_bias_vec(self):
-        # assert self._bias != 0,'Bias equal to zero is forbidden.'
+        assert self._bias != 0,'Bias equal to zero is forbidden.'
 
         if self._bias is None:
             self._bias_vec = None
@@ -1250,55 +1407,58 @@ class ESN:
         else:
             assert mode is None,"You have given unsupported input for the 'mode' argument."
 
+    def _get_leak(self,leak_rate,leak_version):
+        leak_version_ = leak_version if self.leak_version is None else self.leak_version
+        leak_rate_ = leak_rate if self.leak_rate is None else self.leak_rate
+        return leak_rate_ , leak_version_
+
     def _fn_interpreter(self,f):
         if isinstance(f,str):
-            self.__f_out_name = f
             if f.lower()=="tanh":
-                return np.tanh if self._os == 'numpy' else torch.tanh
+                return np.tanh if self._mm == np.dot else torch.tanh
             elif f.lower()=="sigmoid":
-                return sigmoid if self._os == 'numpy' else torch.sigmoid
+                return sigmoid if self._mm == np.dot else torch.sigmoid
             elif f.lower()=="relu":
-                return leaky_relu(0) if self._os == 'numpy' else torch.relu
+                return leaky_relu(0) if self._mm == np.dot else torch.relu
             elif f.lower().startswith('leaky'):
                 neg_slope = float(f.split('_')[-1])
-                return leaky_relu(neg_slope) if self._os == 'numpy' else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
+                return leaky_relu(neg_slope) if self._mm == np.dot else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
             elif f.lower()=="softmax":
-                return softmax if self._os == 'numpy' else lambda x: torch.softmax(x,0,dtype=self.reservoir_layer.dtype)
+                return softmax if self._mm == np.dot else lambda x: torch.softmax(x,0,dtype=self.reservoir_layer.dtype)
             elif f.lower()=="id":
                 return Id
             else:
                 raise Exception("The specified activation function is not a registered one.")
         else:
-            self.__f_out_name = 'custom'
             return f
 
     def _vstack(self,x):
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             return np.vstack(x)
         else:
             return torch.vstack(x)
 
     def _hstack(self,x):
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             return np.hstack(x)
         else:
             return torch.hstack(x)
     
     def _cat(self,x):
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             return np.concatenate(x)
         else:
             return torch.cat(x)
 
     def _column_stack(self,x):
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             return np.column_stack(x)
         else:
             return torch.column_stack(x)            
 
     def _tensor(self,x):
         assert x.dtype == self.dtype or str(x.dtype).split('.')[-1] == self.dtype
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             if isinstance(x,(np.ndarray,NoneType)):
                 return x
             elif isinstance(x,list):
@@ -1318,14 +1478,14 @@ class ESN:
                 raise NotImplementedError
 
     def _get_clone(self,x):
-        if self._mm == np.matmul:
+        if self._mm == np.dot:
             return x.copy()
         else:
             return x.clone()
 
     def _torchify(self):
 
-        self._mm = torch.matmul if self._mm == np.matmul else self._mm #Dont change this
+        self._mm = torch.matmul if self._mm == np.dot else self._mm #Dont change this
 
         for W_str in ['Wout','W','Win','Wback']:
             W_ = self.__getattribute__(W_str)
@@ -1386,7 +1546,7 @@ class ESN:
         self_size = getattr(self,size_str)
 
         if self_size is None:
-            self.__setattr__(size_str,size)
+            setattr(self,size_str,size)
         elif size is None:
             assert self_size is not None
         else:
@@ -1426,6 +1586,7 @@ class ESN:
                 assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
 
 
+
 class ESNX(ESN):
     """
     EchoStateNetwork X
@@ -1442,7 +1603,7 @@ class ESNX(ESN):
                 custom_initState: np.ndarray = None,
                 **kwargs):
         
-        self.__name = 'ESNX'
+        self._name = 'ESNX'
 
         super().__init__(resSize=resSize, 
                         xn=xn, 
@@ -1484,7 +1645,7 @@ class ESNS(ESN):
                 custom_initState: np.ndarray = None,
                 **kwargs):
 
-        self.__name = 'ESNS'
+        self._name = 'ESNS'
 
         super().__init__(resSize=resSize, 
                         xn=xn, 
@@ -1536,7 +1697,7 @@ class ESNN(ESN,torch.nn.Module):
                 custom_initState: np.ndarray = None,
                 **kwargs):
 
-        self.__name = 'ESNN'
+        self._name = 'ESNN'
 
         ESN.__init__(self,
                     resSize=resSize, 
@@ -1564,6 +1725,7 @@ class ESNN(ESN,torch.nn.Module):
 
         self._inSize = in_size
         self._outSize = out_size
+        self.f = self._fn_interpreter(kwargs.get("f",Id))
 
     def _mm(self,a,b):
         if hasattr(a,'in_features'):

@@ -41,7 +41,7 @@ Echo State Network
     **Keyword Arguments**
             
         :``verbose``: Mute the initialization message.
-        :``f``: User can provide custom activation function of the reservoir. 
+        :``f``: User can provide custom activation function of the reservoir. Default is identity.
                 Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
                 Some functions can also be given as strings. Accepted strings are:
 
@@ -51,13 +51,14 @@ Echo State Network
                     - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
                     - ``'softmax'``
                     - ``'id'``: Identity.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
-        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
-        :``bias``: Set strength of bias in the input, reservoir and readout connections.
+        :``f_out``: User can provide custom output activation. Default is identity.
+        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN). Default is `1`.
+        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_. Default is `0`.
+        :``bias``: Set strength of bias in the input, reservoir and readout connections. Disabled by default.
         :``W`` , ``Win`` , ``Wout`` , ``Wback``: User can provide custom reservoir, input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
         :``device``: Give ``'cpu'`` if ``use_torch`` is ``True``, CUDA is available on your device but you want to use CPU.
-        :``dtype``: Data type of reservoir. Default is float32.
+        :``dtype``: Data type of reservoir. Default is ``float64``.
 
 
 ---------------------------
@@ -77,18 +78,46 @@ Scales the reservoir connection matrix to have certain spectral norm or radius.
 
 
 ---------------------------
-ESN.set_bias
+ESN.set
 ---------------------------
 
-Sets the bias strength.
+Sets various properties of the reservoir. Currently settable:
+
+    - ``'bias'`` : Bias strength in the input, reservoir and readout connections.
+    - ``'leak_rate'``: Leak parameter in Leaky Integrator ESN (LiESN).
+    - ``'leak_version'``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
+    - ``'f'``: Activation function of the reservoir.
+    - ``'f_out'``: Output activation function.
 
 
-    .. method:: set_bias(strength: float) -> None
+    .. method:: set(prop:str,val:Union[int,float,Callable,bool],verbose:bool=True) -> None
 
 
     **Parameters**
 
-        :``strength``: Set strength of bias in the input, reservoir and readout connections.
+        :``prop``: Use one given in the list above.
+        :``val``: Set the chosen property to this value.
+        :``verbose``: Set to ``False`` to mute the messages.
+
+---------------------------
+ESN.get
+---------------------------
+
+Returns various properties of the reservoir. Currently gettable:
+
+    - ``'bias'`` : Bias strength in the input, reservoir and readout connections.
+    - ``'leak_rate'``: Leak parameter in Leaky Integrator ESN (LiESN).
+    - ``'leak_version'``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
+    - ``'f'``: Activation function of the reservoir.
+    - ``'f_out'``: Output activation function.
+
+
+    .. method:: get(prop:str) -> Union[int,float,Callable,bool]
+
+
+    **Parameters**
+
+        :``prop``: Use one given in the list above.
 
 
 ---------------------------
@@ -125,15 +154,11 @@ After initial transient, updated `x` are registered at each iteration and can be
     .. method:: excite(  \
                     u: np.ndarray=None,  \
                     y: np.ndarray=None,  \
-                    bias: Union[int,float]=None,  \
-                    f: Union[str,Any]=None,  \
-                    leak_rate: Union[int,float]=None,  \
                     initLen: int=None,   \
                     trainLen: int=None,  \
                     initTrainLen_ratio: float=None,  \
                     wobble: bool=False,  \
                     wobbler: np.ndarray=None,  \
-                    leak_version: int =0,  \
                     **kwargs) -> None
 
 
@@ -141,10 +166,6 @@ After initial transient, updated `x` are registered at each iteration and can be
 
         :``u``: Input. Has shape [...,time].
         :``y``: To be forecast. Has shape [...,time].
-        :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``f``: User can provide custom activation function. Default is None. `See`_ for accepted activations.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
-        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
         :``initLen``: Number of timesteps to be taken as initial transient tolarance. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.
         :``trainLen``: Total number of training steps. Will be set to the length of input data.
         :``initTrainLen_ratio``: Alternative to initLen, the user can provide the initialization period as ratio of the training length. The input ``8`` would mean that the initialization period will be an eighth of the training length.
@@ -154,8 +175,6 @@ After initial transient, updated `x` are registered at each iteration and can be
 
     **Keyword Arguments**
                     
-        :``Win``: Custom input weights.
-        :``Wback``: Custom feedback weights.
         :``validation_mode``: Set to ``True`` to use ``excite`` in validation mode to prepare the reservoir for validation.
             
             .. Note:: To use this feature, ``excite`` must be called in training mode first.
@@ -210,8 +229,6 @@ Returns forecast.
                     u: np.ndarray=None, \
                     y: np.ndarray=None, \
                     valLen: int=None, \
-                    f_out=lambda x: x, \
-                    output_transformer=lambda x:x, \
                     **kwargs) -> np.ndarray
 
 
@@ -224,16 +241,9 @@ Returns forecast.
         :``valLen``: Validation length. 
         
             .. Note:: If ``u`` or ``y`` is provided it is not needed to be set. Mostly necessary for when neither ``u`` nor ``y`` is present.
-        
-        :``f_out``: Custom output activation. Default is identity.
-
-        :``output_transformer``: Transforms the reservoir outputs at the very end. Default is identity.
 
     **Keyword Arguments**
 
-        :``bias``: Set strength of bias in the input, reservoir and readout connections. Default is the one used in training.
-        :``f``: User can provide custom reservoir activation function. Default is the one used in training.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN). Default is the ``leak_rate`` used in training.
         :``wobble``: For enabling random noise. Default is False.
         :``wobbler``: User can provide custom noise. Disabled per default.
 
@@ -251,11 +261,7 @@ Executes a whole training/validation session by calling the methods ``excite``, 
                             X_v: np.ndarray=None, \
                             y_v: np.ndarray=None, \
                             training_data: np.ndarray=None, \
-                            bias: int=None, \
-                            f=None, \
                             f_out_inverse=None, \
-                            f_out=lambda x:x, \
-                            output_transformer=lambda x:x, \
                             initLen: int=None,  \
                             initTrainLen_ratio: float=None, \
                             trainLen: int=None, \
@@ -280,20 +286,7 @@ Executes a whole training/validation session by calling the methods ``excite``, 
         :``X_v``: Validation inputs. Has shape [...,time].
         :``y_v``: Validation targets. Has shape [...,time].
         :``training_data``: Data to fit to in regression. It will be set to ``y_t`` automatically if it is not provided. Either way, ``y_t`` will be used when calling ``excite``.
-        :``bias``: Set strength of bias in the input, reservoir and readout connections.
-        :``f``: User can provide custom activation function of the reservoir. 
-                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
-                Some functions can also be given as strings. Accepted strings are:
-
-                    - ``'tanh'``
-                    - ``'sigmoid'``
-                    - ``'relu'``
-                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
-                    - ``'softmax'``
-                    - ``'id'``: Identity.
-        :``f_out_inverse``: Please give the INVERSE activation function. User can give custom output activation. No activation is used by default.
-        :``f_out``: Custom output activation. Default is identity.
-        :``output_transformer``: Transforms the reservoir outputs at the very end. Default is identity.
+        :``f_out_inverse``: Please give the INVERSE output activation function. No activation is used by default.
         :``initLen``: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.
         :``initTrainLen_ratio``: Alternative to initLen, the user can provide the initialization period as ratio of the training length. An input of 8 would mean that the initialization period will be an eighth of the training length.
         :``trainLen``: Total no of training steps. Will be set to the length of input data, if not provided.
@@ -310,13 +303,6 @@ Executes a whole training/validation session by calling the methods ``excite``, 
 
     **Keyword Arguments**
 
-        :``Win`` , ``Wback``: User can provide custom input, feedback matrices.
-        :``bias_val``: Set strength of bias in the input, reservoir and readout connections during validation. Default is bias used in training.
-        :``f_val``: User can provide custom reservoir activation function to be used during validation. Default is activation used in training.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
-        :``leak_rate_val``: Leak parameter in Leaky Integrator ESN (LiESN) during validation.
-        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
-        :``leak_version_val``: Leaking version for validation. Default is the one used in training.
         :``wobble_val``: For enabling noise to be added to ``y_val`` during validation. Default is False.
         :``wobbler_val``: User can provide custom noise to be added to ``y_val``. Disabled per default.
         :``train_only``: Set to True to perform a training session only, i.e. no validation is done.
@@ -340,8 +326,6 @@ This formula is for when both ``u`` and ``y`` are provided.
     .. method::   update_reservoir_layer( \
                     in_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
                     ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
-                    ,leak_version:int = 0  \
-                    ,leak_rate=1.  \
                     ,mode:Optional[str]=None) -> None
 
 
@@ -350,8 +334,6 @@ This formula is for when both ``u`` and ``y`` are provided.
 
         :``in_``: Input array.
         :``out_``: Output array.
-        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
         :``mode``: Optional. Set to ``'train'`` if you are updating the reservoir layer for training purposes. Set to ``'val'`` if you are doing so for validation purposes. \
                 This will allow the reservoir object to name the training/validation modes, which can be accessed from ``'training_type'`` and ``'val_type'`` attributes.
 
@@ -382,8 +364,6 @@ When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer 
     .. method:: update_reservoir_layers_serially( \
         , in_: Union[np.ndarray, torch.Tensor, NoneType] = None \
         , out_: Union[np.ndarray, torch.Tensor, NoneType] = None \
-        , leak_version: int = 0 \
-        , leak_rate: float=1    \
         , mode: Optional[str] = None \
         ,init_size: int = 0) -> None
 
