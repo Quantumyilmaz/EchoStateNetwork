@@ -469,7 +469,7 @@ Deletes the desired connection of the network.
 
     **Parameters**
 
-        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
+        :``w_name``: Name of the connection: ``'Win'``, ``'W'`` or ``'Wback'``.
         :``verbose``: Set to False to mute the messages.
 
 -------
