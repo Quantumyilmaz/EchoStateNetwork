@@ -485,7 +485,7 @@ Sends the reservoir to cpu device.
 ESN.save
 --------
 
-Pickles the reservoir to the provided path. Save path example: ``./saved_reservoir.pkl``
+Pickles the reservoir to the provided path. Save path example: ``'./saved_reservoir.pkl'``
 
     .. method:: save(save_path:str) -> None
 
@@ -497,7 +497,7 @@ Pickles the reservoir to the provided path. Save path example: ``./saved_reservo
 ESN.load
 --------
 
-Loads the reservoir from the provided path. Load path example: ``./saved_reservoir.pkl``
+Loads the reservoir from the provided path. Load path example: ``'./saved_reservoir.pkl'``
 
     .. method:: load(load_path:str) -> None
 
