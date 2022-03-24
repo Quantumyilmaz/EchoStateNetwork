@@ -11,7 +11,8 @@ __pycache__/EchoStateNetwork.cpython-39.pyc
 __pycache__/EchoStateNetwork.cpython-310.pyc
 __pycache__/EchoStateNetwork.cpython-310.pyc
 backups/EchoStateNetwork_22.03.22.py
-docs/requirements.txt
+docs/make.bat
+docs/Makefile
 docs/source/_build/html/.buildinfo
 docs/source/_build/html/.doctrees/deneme.doctree
 docs/source/_build/html/.doctrees/environment.pickle
