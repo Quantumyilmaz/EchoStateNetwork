@@ -451,7 +451,7 @@ Creates the desired connection of the network.
 
     **Parameters**
 
-        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
+        :``w_name``: Name of the connection: ``'Win'``, ``'W'`` or ``'Wback'``.
         :``inplace``: Whether to overwrite the connection.
         :``verbose``: Set to False to mute the messages.
 
