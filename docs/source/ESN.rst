@@ -1,0 +1,516 @@
+
+.. default-domain::py
+.. default-role:: math
+
+
+.. _Jaeger's recursion formula: https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'
+.. _ESNRLS paper: https://ieeexplore.ieee.org/document/9458984
+.. _scikit documentation: https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html?highlight=ridge#sklearn.linear_model.Ridge
+.. _See: https://echostatenetwork.readthedocs.io/en/latest/ESN.html#ESN
+.. _ESNX: ENSX.rst
+.. _ESNS: ENSS.rst
+.. _ESNN: ENSN.rst
+
+
+===
+ESN
+===
+
+Echo State Network
+
+
+    .. class:: ESN( \
+                            resSize: int=400, \
+                            xn: list=[0,0.4,-0.4], \
+                            pn: list=[0.9875, 0.00625, 0.00625], \
+                            random_state: float=None, \
+                            null_state_init: bool=True, \
+                            custom_initState: np.ndarray=None, \
+                            **kwargs)
+
+
+    **Parameters**
+
+        :``resSize``: Number of units (nodes) in the reservoir.
+        :``xn`` , ``pn``: User can provide custom random variable to control the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities.
+        :``random_state``: Fix random state. If provided, ``np.random.seed`` and ``torch.manual_seed`` are called.
+        :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
+        :``custom_initState``: User can give custom initial reservoir state.
+
+
+    **Keyword Arguments**
+            
+        :``verbose``: Mute the initialization message.
+        :``f``: User can provide custom activation function of the reservoir. Default is identity.
+                Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
+                Some functions can also be given as strings. Accepted strings are:
+
+                    - ``'tanh'``
+                    - ``'sigmoid'``
+                    - ``'relu'``
+                    - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
+                    - ``'softmax'``
+                    - ``'id'``: Identity.
+        :``f_out``: User can provide custom output activation. Default is identity.
+        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN). Default is `1`.
+        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_. Default is `0`.
+        :``bias``: Set strength of bias in the input, reservoir and readout connections. Disabled by default.
+        :``W`` , ``Win`` , ``Wout`` , ``Wback``: User can provide custom reservoir, input, output, feedback matrices.
+        :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
+        :``device``: Give ``'cpu'`` if ``use_torch`` is ``True``, CUDA is available on your device but you want to use CPU.
+        :``dtype``: Data type of reservoir. Default is ``float64``.
+
+
+---------------------------
+ESN.scale_reservoir_weights
+---------------------------
+
+Scales the reservoir connection matrix to have certain spectral norm or radius.
+
+
+    .. method:: scale_reservoir_weights(desired_scaling: float, reference='ev') -> None
+
+
+    **Parameters**
+
+        :``desired_scaling``: Scales the reservoir matrix to have the desired spectral norm or radius.
+        :``reference``: Give ``'ev'`` (eigenvalue) to choose spectral radius, ``'sv'`` (singular value) to choose spectral norm as reference.
+
+
+---------------------------
+ESN.set
+---------------------------
+
+Sets various properties of the reservoir. Currently settable:
+
+    - ``'bias'`` : Bias strength in the input, reservoir and readout connections.
+    - ``'leak_rate'``: Leak parameter in Leaky Integrator ESN (LiESN).
+    - ``'leak_version'``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
+    - ``'f'``: Activation function of the reservoir.
+    - ``'f_out'``: Output activation function.
+
+
+    .. method:: set(prop:str,val:Union[int,float,Callable,bool],verbose:bool=True) -> None
+
+
+    **Parameters**
+
+        :``prop``: Use one given in the list above.
+        :``val``: Set the chosen property to this value.
+        :``verbose``: Set to ``False`` to mute the messages.
+
+---------------------------
+ESN.get
+---------------------------
+
+Returns various properties of the reservoir. Currently gettable:
+
+    - ``'bias'`` : Bias strength in the input, reservoir and readout connections.
+    - ``'leak_rate'``: Leak parameter in Leaky Integrator ESN (LiESN).
+    - ``'leak_version'``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
+    - ``'f'``: Activation function of the reservoir.
+    - ``'f_out'``: Output activation function.
+
+
+    .. method:: get(prop:str) -> Union[int,float,Callable,bool]
+
+
+    **Parameters**
+
+        :``prop``: Use one given in the list above.
+
+
+---------------------------
+ESN.reconnect_reservoir
+---------------------------
+
+Assigns new matrix to the reservoir with redefined connectivity.
+
+
+    .. method:: reconnect_reservoir(xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None
+
+
+    **Parameters**
+
+        :``xn`` , ``pn``: User can provide random variable to alter the connectivity of the reservoir. ``xn`` are the values and ``pn`` are the corresponding probabilities of the random variable.
+        :``verbose``: Set to False to mute the messages.
+
+----------
+ESN.excite
+----------
+
+Time series data is used to update the reservoir nodes according to the formula:
+
+`x_{n+1} = (1-\alpha) \cdot x_n + \alpha \cdot f(\textbf W_{in} \cdot u_{n+1} + \textbf W \cdot x_n + \textbf W_{back} \cdot y_n)`
+
+
+, where `x` are the reservoir nodes, `u` inputs, `y` labels, `\alpha` leaking rate, `f` activation function.
+This formula is for when both ``u`` and ``y`` are provided.
+
+.. Note:: The appropriate update formula is automatically recognized from the given parameters.
+
+After initial transient, updated `x` are registered at each iteration and can be called via ``reg_X`` attribute.
+
+    .. method:: excite(  \
+                    u: np.ndarray=None,  \
+                    y: np.ndarray=None,  \
+                    initLen: int=None,   \
+                    trainLen: int=None,  \
+                    initTrainLen_ratio: float=None,  \
+                    wobble: bool=False,  \
+                    wobbler: np.ndarray=None,  \
+                    **kwargs) -> None
+
+
+    **Parameters**
+
+        :``u``: Input. Has shape [...,time].
+        :``y``: To be forecast. Has shape [...,time].
+        :``initLen``: Number of timesteps to be taken as initial transient tolarance. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.
+        :``trainLen``: Total number of training steps. Will be set to the length of input data.
+        :``initTrainLen_ratio``: Alternative to initLen, the user can provide the initialization period as ratio of the training length. The input ``8`` would mean that the initialization period will be an eighth of the training length.
+        :``wobble``: For enabling noise to be added to ``y``.
+        :``wobbler``: User can provide custom noise. Default is ``np.random.uniform(-1,1)/10000``.
+
+
+    **Keyword Arguments**
+                    
+        :``validation_mode``: Set to ``True`` to use ``excite`` in validation mode to prepare the reservoir for validation.
+            
+            .. Note:: To use this feature, ``excite`` must be called in training mode first.
+
+-----------
+ESN.reg_fit
+-----------
+
+Does a regression to ``y`` using the registered reservoir updates, which can be obtained from attribute ``reg_X``:
+`\text W_{out} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2`
+
+    .. method:: reg_fit( \
+                    y: np.ndarray, \
+                    f_out_inverse=None, \
+                    regr=None, \
+                    reg_type: str="ridge", \
+                    ridge_param: float=1e-8, \
+                    solver: str="auto", \
+                    error_measure: str="mse", \
+                    **kwargs) -> np.ndarray
+
+    **Parameters**
+
+        :``y``: Data to fit.
+        :``f_out_inverse``: User can give custom output activation. Please give the INVERSE of the activation function. No activation is used by default.
+        :``regr``: User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn's regressor.
+        :``reg_type``: Regression type. Can be ``ridge`` or ``linear``. Default is ``linear``.
+        :``ridge_param``: Regularization factor in ridge regression.
+        :``solver``: See `scikit documentation`_.
+        :``error_measure``: Type of error to be displayed. Can be ``'mse'`` (Mean Squared Error) or ``'mape'`` (Mean Absolute Percentage Error).
+
+    **Keyword Arguments**
+
+        :``verbose``: For the error message. 
+
+        :``reg_X``: Lets you overwrite ``self.reg_X`` (matrix used in regression) with a custom one of your choice. \
+                            
+            .. tip:: 
+
+                For online training purposes, i.e. you call ``excite`` up to a certain point in your data and do a forecast at that point and repeat it at later points in your data. Instead of "exciting" reservoir states and doing regression multiple times up to these forecasts at varying points, which is inefficient since you perform same calculations repeatedly, you can excite using all data and use partial excitations, i.e. just the part of self.reg_X relevant and required for the regression.
+
+
+
+
+------------
+ESN.validate
+------------
+
+Returns forecast.
+
+    .. method:: validate( \
+                    u: np.ndarray=None, \
+                    y: np.ndarray=None, \
+                    valLen: int=None, \
+                    **kwargs) -> np.ndarray
+
+
+    **Parameters**
+
+        :``u``: Input series. Has shape [...,time].
+
+        :``y``: To be forecast. Has shape [...,time].
+
+        :``valLen``: Validation length. 
+        
+            .. Note:: If ``u`` or ``y`` is provided it is not needed to be set. Mostly necessary for when neither ``u`` nor ``y`` is present.
+
+    **Keyword Arguments**
+
+        :``wobble``: For enabling random noise. Default is False.
+        :``wobbler``: User can provide custom noise. Disabled per default.
+
+
+
+-----------
+ESN.session
+-----------
+
+Executes a whole training/validation session by calling the methods ``excite``, ``train`` and ``validate``. Returns the forecasts.
+
+    .. method:: session( \
+                            X_t: np.ndarray=None, \
+                            y_t: np.ndarray=None, \
+                            X_v: np.ndarray=None, \
+                            y_v: np.ndarray=None, \
+                            training_data: np.ndarray=None, \
+                            f_out_inverse=None, \
+                            initLen: int=None,  \
+                            initTrainLen_ratio: float=None, \
+                            trainLen: int=None, \
+                            valLen: int=None, \
+                            wobble_train: bool=False, \
+                            wobbler_train: np.ndarray=None, \
+                            null_state_init: bool=True, \
+                            custom_initState: np.ndarray=None, \
+                            regr=None, \
+                            reg_type: str="ridge", \
+                            ridge_param: float=1e-8, \
+                            solver: str="auto", \
+                            error_measure: str="mse", \
+                            **kwargs \
+                            ) -> np.ndarray
+
+
+    **Parameters**
+
+        :``X_t``: Training inputs. Has shape [...,time].
+        :``y_t``: Training targets. Has shape [...,time].
+        :``X_v``: Validation inputs. Has shape [...,time].
+        :``y_v``: Validation targets. Has shape [...,time].
+        :``training_data``: Data to fit to in regression. It will be set to ``y_t`` automatically if it is not provided. Either way, ``y_t`` will be used when calling ``excite``.
+        :``f_out_inverse``: Please give the INVERSE output activation function. No activation is used by default.
+        :``initLen``: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. Will be set to an eighth of the training length if not provided.
+        :``initTrainLen_ratio``: Alternative to initLen, the user can provide the initialization period as ratio of the training length. An input of 8 would mean that the initialization period will be an eighth of the training length.
+        :``trainLen``: Total no of training steps. Will be set to the length of input data, if not provided.
+        :``valLen``: Total no of validation steps. Will be set to the length of input data, if not provided.
+        :``wobble_train``: For enabling noise to be added to ``y_t``.
+        :``wobbler_train``: User can provide custom noise. Default is ``np.random.uniform(-1,1)/10000``.
+        :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
+        :``custom_initState``: User can give custom initial reservoir state.
+        :``regr``: User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn's regressor.
+        :``reg_type``: Regression type. Can be ``ridge`` or ``linear``. Default is ``linear``.
+        :``ridge_param``: Regularization factor in ridge regression.
+        :``solver``: See `scikit documentation`_.
+        :``error_measure``: Type of error to be displayed. Can be ``'mse'`` (Mean Squared Error) or ``'mape'`` (Mean Absolute Percentage Error).
+
+    **Keyword Arguments**
+
+        :``wobble_val``: For enabling noise to be added to ``y_val`` during validation. Default is False.
+        :``wobbler_val``: User can provide custom noise to be added to ``y_val``. Disabled per default.
+        :``train_only``: Set to True to perform a training session only, i.e. no validation is done.
+        :``verbose``: Mute the training error messages.
+
+
+
+--------------------------
+ESN.update_reservoir_layer
+--------------------------
+
+Applies one-step update to the reservoir layer using:
+`x_{n+1} = (1-\alpha) \cdot x_n + \alpha \cdot f(\textbf W_{in} \cdot u_{n+1} + \textbf W \cdot x_n + \textbf W_{back} \cdot y_n)`
+, where `x` are the reservoir nodes, `u` inputs, `y` labels, `\alpha` leaking rate, `f` activation function.
+This formula is for when both ``u`` and ``y`` are provided.
+
+.. Note:: The appropriate update formula is automatically recognized from the given parameters.
+
+\ \
+
+    .. method::   update_reservoir_layer( \
+                    in_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
+                    ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None  \
+                    ,mode:Optional[str]=None) -> None
+
+
+
+    **Parameters**
+
+        :``in_``: Input array.
+        :``out_``: Output array.
+        :``mode``: Optional. Set to ``'train'`` if you are updating the reservoir layer for training purposes. Set to ``'val'`` if you are doing so for validation purposes. \
+                This will allow the reservoir object to name the training/validation modes, which can be accessed from ``'training_type'`` and ``'val_type'`` attributes.
+
+------------------------------------
+ESN.update_reservoir_layers_serially
+------------------------------------
+
+.. warning:: Resets reservoir layer. See `ESN.reset_reservoir_layer`_.
+
+When using the reservoir in ``batch`` or ``ensemble`` mode, the reservoir layer will  be updated using
+`x^k = (1-\alpha)x^{k-1} + \alpha \cdot f(\textbf W_{in} \cdot u^{k} + \textbf W \cdot x^{k-1})` \
+, where `1\leq k \leq` the batch size, `u^k` the `k^{th}` data point in the batch and `x^0` is the initial reservoir layer before any updates.
+
+`x` here is a matrix with shape:
+
+    (reservoir size,batch size) if in ``batch`` mode.
+
+    (number of reservoirs,reservoir size,batch size) if in ``ensemble`` mode.
+
+.. Note:: Reservoir can be set to ``batch`` or ``ensemble`` mode by using `ESN.set_reservoir_layer_mode`_ or one of the following:
+
+    - `ESNX`_
+    - `ESNS`_
+    - `ESNN`_
+
+\ \
+
+    .. method:: update_reservoir_layers_serially( \
+        , in_: Union[np.ndarray, torch.Tensor, NoneType] = None \
+        , out_: Union[np.ndarray, torch.Tensor, NoneType] = None \
+        , mode: Optional[str] = None \
+        ,init_size: int = 0) -> None
+
+    **Parameters**
+
+        :``in_``: Input with shape 
+                    
+                    - (data point length,batch size + initialization length) (see ``init_size``) if in ``batch`` mode.
+                    - (number of reservoirs,data point length,batch size + initialization length) if in ``ensemble`` mode.
+        :``out_``: **Not supported. WIP.**
+        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
+        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
+        :``mode``: Optional. Set to ``'train'`` if you are updating the reservoir layer for training purposes. Set to ``'val'`` if you are doing so for validation purposes. \
+                This will allow the reservoir object to name the training/validation modes, which can be accessed from ``'training_type'`` and ``'val_type'`` attributes.
+        :``init_size``: The first ``init_size`` data points are expended for initial transient to pass.
+
+-------------------------
+ESN.reset_reservoir_layer
+-------------------------
+
+Resets reservoir layer, i.e. sets the reservoir nodes back to their initial state.
+
+    .. method:: reset_reservoir_layer() -> None
+
+----------------------------
+ESN.set_reservoir_layer_mode
+----------------------------
+
+.. warning:: Resets reservoir layer. See `ESN.reset_reservoir_layer`_.
+
+Sets the reservoir mode to ``single``, ``batch`` or ``ensemble`` by expanding or collapsing the reservoir layer (see shapes below).
+Changes the shape of the reservoir layer, which can be obtained from ``reservoir_layer`` attribute.
+
+    - ``single``: reservoir layer has shape (reservoir size,1)
+    - ``batch``: reservoir layer has shape (reservoir size,batch size)
+    - ``ensemble``: reservoir layer has shape (number of reservoirs,reservoir size,batch size)
+  
+  \ \
+
+    .. method:: set_reservoir_layer_mode(mode: str,batch_size: int=None,no_of_reservoirs :int=None) -> None
+
+    **Parameters**
+
+        :``mode``: Set to ``single``, ``batch`` or ``ensemble``.
+        :``batch_size``: Necessary if using ``batch`` or ``ensemble``. If not provided ``batch_size`` which was specified at initialization will be used.
+        :``no_of_reservoirs``: Necessary if using ``ensemble``. If not provided ``no_of_reservoirs`` which was specified at initialization will be used.
+
+
+-------------
+ESN.copy_from
+-------------
+
+Copies the reservoir properties to the current reservoir.
+
+    .. method:: copy_from(reservoir,bind=False) -> None
+
+    **Parameters**
+
+        :``reservoir``: Reservoir to copy from.
+        :``bind``: Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir will affect the other. \
+                    By default the properties from the reservoir that is copied from will be written to separate memory.
+
+-------------------------
+ESN.copy_connections_from
+-------------------------
+
+Similar to `ESN.copy_from`_ but copies only the connection matrices.
+
+    .. method:: copy_connections_from(reservoir,bind=False,weights_list=None) -> None
+
+    **Parameters**
+
+        :``reservoir``: Reservoir to copy from.
+        :``bind``: Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir's connection matrices will affect the other's. \
+                    By default the connection matrices from the reservoir that is copied from will be written to separate memory.
+        :``weights_list``: Give a sublist of the list ``['Wout','W','Win','Wback']`` if you do not want to copy all the connections.
+
+-------------------
+ESN.make_connection
+-------------------
+
+Creates the desired connection of the network.
+
+    .. method:: make_connection(w_name:str,inplace:bool=False,verbose:bool=True,**kwargs) -> Union[np.ndarray,torch.tensor,None]
+
+    **Parameters**
+
+        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
+        :``inplace``: Whether to overwrite the connection.
+        :``verbose``: Set to False to mute the messages.
+
+    **Keyword Arguments**
+
+        :``size``: User should provide information on the size associated with the corresponding connection matrix: input size for ``Win``, output size for ``Wback``.
+
+---------------------
+ESN.delete_connection
+---------------------
+
+Deletes the desired connection of the network.
+
+    .. method:: delete_connection(w_name:str,verbose:bool=True) -> None
+
+    **Parameters**
+
+        :``w_name``: Name of the connection: ``'Win'``,``'W'``, or ``'Wback'``.
+        :``verbose``: Set to False to mute the messages.
+
+-------
+ESN.cpu
+-------
+
+Sends the reservoir to cpu device.
+
+    .. method:: cpu() -> None
+
+
+--------
+ESN.save
+--------
+
+Pickles the reservoir to the provided path. Save path example: ``./saved_reservoir.pkl``
+
+    .. method:: save(save_path:str) -> None
+
+    **Parameters**
+
+        :``save_path``: Path to pickle the reservoir to.
+
+--------
+ESN.load
+--------
+
+Loads the reservoir from the provided path. Load path example: ``./saved_reservoir.pkl``
+
+    .. method:: load(load_path:str) -> None
+
+    **Parameters**
+
+        :``load_path``: Path to load the reservoir from.
+
+
+
+
+.. .. code-block::
+..    :caption: A cool example
+
+..        The output of this line starts with four spaces.
+
+
