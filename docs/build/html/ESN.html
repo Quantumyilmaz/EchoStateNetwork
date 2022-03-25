@@ -270,14 +270,14 @@ This formula is for when both <code class="docutils literal notranslate"><span c
 </div></blockquote>
 </div></blockquote>
 </div>
-<div class="section" id="esn-reg-fit">
-<h2>ESN.reg_fit<a class="headerlink" href="#esn-reg-fit" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="esn-fit">
+<h2>ESN.fit<a class="headerlink" href="#esn-fit" title="Permalink to this headline">¶</a></h2>
 <p>Does a regression to <code class="docutils literal notranslate"><span class="pre">y</span></code> using the registered reservoir updates, which can be obtained from attribute <code class="docutils literal notranslate"><span class="pre">reg_X</span></code>:
 <span class="math notranslate nohighlight">\(\text W_{out} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2\)</span></p>
 <blockquote>
 <div><dl class="py method">
-<dt id="reg_fit">
-<code class="sig-name descname">reg_fit</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">y</span><span class="p">:</span> <span class="n">np.ndarray</span></em>, <em class="sig-param"><span class="n">f_out_inverse</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">regr</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">reg_type</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'ridge'</span></em>, <em class="sig-param"><span class="n">ridge_param</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">1e-08</span></em>, <em class="sig-param"><span class="n">solver</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'auto'</span></em>, <em class="sig-param"><span class="n">error_measure</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'mse'</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span> &#x2192; np.ndarray<a class="headerlink" href="#reg_fit" title="Permalink to this definition">¶</a></dt>
+<dt id="fit">
+<code class="sig-name descname">fit</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">y</span><span class="p">:</span> <span class="n">np.ndarray</span></em>, <em class="sig-param"><span class="n">f_out_inverse</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">regr</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">reg_type</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'ridge'</span></em>, <em class="sig-param"><span class="n">ridge_param</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">1e-08</span></em>, <em class="sig-param"><span class="n">solver</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'auto'</span></em>, <em class="sig-param"><span class="n">error_measure</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'mse'</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span> &#x2192; np.ndarray<a class="headerlink" href="#fit" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <p><strong>Parameters</strong></p>
@@ -655,7 +655,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <blockquote>
 <div><dl class="field-list simple">
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">w_name</span></code></dt>
-<dd class="field-odd"><p>Name of the connection: <code class="docutils literal notranslate"><span class="pre">'Win'</span></code>,``’W’<code class="docutils literal notranslate"><span class="pre">,</span> <span class="pre">or</span> <span class="pre">``'Wback'</span></code>.</p>
+<dd class="field-odd"><p>Name of the connection: <code class="docutils literal notranslate"><span class="pre">'Win'</span></code>, <code class="docutils literal notranslate"><span class="pre">'W'</span></code> or <code class="docutils literal notranslate"><span class="pre">'Wback'</span></code>.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">inplace</span></code></dt>
 <dd class="field-even"><p>Whether to overwrite the connection.</p>
@@ -688,7 +688,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <blockquote>
 <div><dl class="field-list simple">
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">w_name</span></code></dt>
-<dd class="field-odd"><p>Name of the connection: <code class="docutils literal notranslate"><span class="pre">'Win'</span></code>,``’W’<code class="docutils literal notranslate"><span class="pre">,</span> <span class="pre">or</span> <span class="pre">``'Wback'</span></code>.</p>
+<dd class="field-odd"><p>Name of the connection: <code class="docutils literal notranslate"><span class="pre">'Win'</span></code>, <code class="docutils literal notranslate"><span class="pre">'W'</span></code> or <code class="docutils literal notranslate"><span class="pre">'Wback'</span></code>.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">verbose</span></code></dt>
 <dd class="field-even"><p>Set to False to mute the messages.</p>
@@ -710,7 +710,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 </div>
 <div class="section" id="esn-save">
 <h2>ESN.save<a class="headerlink" href="#esn-save" title="Permalink to this headline">¶</a></h2>
-<p>Pickles the reservoir to the provided path. Save path example: <code class="docutils literal notranslate"><span class="pre">./saved_reservoir.pkl</span></code></p>
+<p>Pickles the reservoir to the provided path. Save path example: <code class="docutils literal notranslate"><span class="pre">'./saved_reservoir.pkl'</span></code></p>
 <blockquote>
 <div><dl class="py method">
 <dt id="save">
@@ -729,7 +729,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 </div>
 <div class="section" id="esn-load">
 <h2>ESN.load<a class="headerlink" href="#esn-load" title="Permalink to this headline">¶</a></h2>
-<p>Loads the reservoir from the provided path. Load path example: <code class="docutils literal notranslate"><span class="pre">./saved_reservoir.pkl</span></code></p>
+<p>Loads the reservoir from the provided path. Load path example: <code class="docutils literal notranslate"><span class="pre">'./saved_reservoir.pkl'</span></code></p>
 <blockquote>
 <div><dl class="py method">
 <dt id="load">
@@ -772,7 +772,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <li class="toctree-l2"><a class="reference internal" href="#esn-get">ESN.get</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-reconnect-reservoir">ESN.reconnect_reservoir</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-excite">ESN.excite</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#esn-reg-fit">ESN.reg_fit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#esn-fit">ESN.fit</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-validate">ESN.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-session">ESN.session</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#esn-update-reservoir-layer">ESN.update_reservoir_layer</a></li>

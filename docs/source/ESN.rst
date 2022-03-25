@@ -180,13 +180,13 @@ After initial transient, updated `x` are registered at each iteration and can be
             .. Note:: To use this feature, ``excite`` must be called in training mode first.
 
 -----------
-ESN.reg_fit
+ESN.fit
 -----------
 
 Does a regression to ``y`` using the registered reservoir updates, which can be obtained from attribute ``reg_X``:
 `\text W_{out} = argmin_{w} ||y - Xw||^2_2 + \eta * ||w||^2_2`
 
-    .. method:: reg_fit( \
+    .. method:: fit( \
                     y: np.ndarray, \
                     f_out_inverse=None, \
                     regr=None, \

@@ -59,7 +59,7 @@ It will `set the reservoir layer mode`_ to
     **Keyword Arguments**
             
         :``verbose``: Mute the initialization message.
-        :``f``: User can provide custom activation function of the reservoir. 
+        :``f``: User can provide custom activation function of the reservoir. Default is identity.
                 Functions in the pytorch or numpy libraries are accepted, including functions defined with ``np.vectorize``.
                 Some functions can also be given as strings. Accepted strings are:
 
@@ -69,13 +69,14 @@ It will `set the reservoir layer mode`_ to
                     - ``'leaky_{slope}'``: e.g. ``'leaky_0.5'`` for LeakyReLU with slope equal to `0.5`.
                     - ``'softmax'``
                     - ``'id'``: Identity.
-        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN).
-        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_.
-        :``bias``: Set strength of bias in the input, reservoir and readout connections.
+        :``f_out``: User can provide custom output activation. Default is identity.
+        :``leak_rate``: Leak parameter in Leaky Integrator ESN (LiESN). Default is `1`.
+        :``leak_version``: Give ``0`` for `Jaeger's recursion formula`_, give ``1`` for recursion formula in `ESNRLS paper`_. Default is `0`.
+        :``bias``: Set strength of bias in the input, reservoir and readout connections. Disabled by default.
         :``W`` , ``Win`` , ``Wout`` , ``Wback``: User can provide custom reservoir, input, output, feedback matrices.
         :``use_torch``: Use pytorch instead of numpy. Will use cuda if available.
         :``device``: Give ``'cpu'`` if ``use_torch`` is ``True``, CUDA is available on your device but you want to use CPU.
-        :``dtype``: Data type of reservoir. Default is float32.
+        :``dtype``: Data type of reservoir. Default is ``float64``.
 
 
 ------------

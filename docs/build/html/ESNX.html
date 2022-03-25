@@ -79,7 +79,7 @@
 <dd class="field-odd"><p>Mute the initialization message.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">f</span></code></dt>
-<dd class="field-even"><p>User can provide custom activation function of the reservoir.
+<dd class="field-even"><p>User can provide custom activation function of the reservoir. Default is identity.
 Functions in the pytorch or numpy libraries are accepted, including functions defined with <code class="docutils literal notranslate"><span class="pre">np.vectorize</span></code>.
 Some functions can also be given as strings. Accepted strings are:</p>
 <blockquote>
@@ -93,26 +93,29 @@ Some functions can also be given as strings. Accepted strings are:</p>
 </ul>
 </div></blockquote>
 </dd>
-<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">leak_rate</span></code></dt>
-<dd class="field-odd"><p>Leak parameter in Leaky Integrator ESN (LiESN).</p>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">f_out</span></code></dt>
+<dd class="field-odd"><p>User can provide custom output activation. Default is identity.</p>
 </dd>
-<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">leak_version</span></code></dt>
-<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">0</span></code> for <a class="reference external" href="https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'">Jaeger’s recursion formula</a>, give <code class="docutils literal notranslate"><span class="pre">1</span></code> for recursion formula in <a class="reference external" href="https://ieeexplore.ieee.org/document/9458984">ESNRLS paper</a>.</p>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">leak_rate</span></code></dt>
+<dd class="field-even"><p>Leak parameter in Leaky Integrator ESN (LiESN). Default is <span class="math notranslate nohighlight">\(1\)</span>.</p>
 </dd>
-<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">bias</span></code></dt>
-<dd class="field-odd"><p>Set strength of bias in the input, reservoir and readout connections.</p>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">leak_version</span></code></dt>
+<dd class="field-odd"><p>Give <code class="docutils literal notranslate"><span class="pre">0</span></code> for <a class="reference external" href="https://www.researchgate.net/publication/215385037_The_echo_state_approach_to_analysing_and_training_recurrent_neural_networks-with_an_erratum_note'">Jaeger’s recursion formula</a>, give <code class="docutils literal notranslate"><span class="pre">1</span></code> for recursion formula in <a class="reference external" href="https://ieeexplore.ieee.org/document/9458984">ESNRLS paper</a>. Default is <span class="math notranslate nohighlight">\(0\)</span>.</p>
 </dd>
-<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">W</span></code> , <code class="docutils literal notranslate"><span class="pre">Win</span></code> , <code class="docutils literal notranslate"><span class="pre">Wout</span></code> , <code class="docutils literal notranslate"><span class="pre">Wback</span></code></dt>
-<dd class="field-even"><p>User can provide custom reservoir, input, output, feedback matrices.</p>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">bias</span></code></dt>
+<dd class="field-even"><p>Set strength of bias in the input, reservoir and readout connections. Disabled by default.</p>
 </dd>
-<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">use_torch</span></code></dt>
-<dd class="field-odd"><p>Use pytorch instead of numpy. Will use cuda if available.</p>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">W</span></code> , <code class="docutils literal notranslate"><span class="pre">Win</span></code> , <code class="docutils literal notranslate"><span class="pre">Wout</span></code> , <code class="docutils literal notranslate"><span class="pre">Wback</span></code></dt>
+<dd class="field-odd"><p>User can provide custom reservoir, input, output, feedback matrices.</p>
 </dd>
-<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">device</span></code></dt>
-<dd class="field-even"><p>Give <code class="docutils literal notranslate"><span class="pre">'cpu'</span></code> if <code class="docutils literal notranslate"><span class="pre">use_torch</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, CUDA is available on your device but you want to use CPU.</p>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">use_torch</span></code></dt>
+<dd class="field-even"><p>Use pytorch instead of numpy. Will use cuda if available.</p>
 </dd>
-<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">dtype</span></code></dt>
-<dd class="field-odd"><p>Data type of reservoir. Default is float32.</p>
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">device</span></code></dt>
+<dd class="field-odd"><p>Give <code class="docutils literal notranslate"><span class="pre">'cpu'</span></code> if <code class="docutils literal notranslate"><span class="pre">use_torch</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, CUDA is available on your device but you want to use CPU.</p>
+</dd>
+<dt class="field-even"><code class="docutils literal notranslate"><span class="pre">dtype</span></code></dt>
+<dd class="field-even"><p>Data type of reservoir. Default is <code class="docutils literal notranslate"><span class="pre">float64</span></code>.</p>
 </dd>
 </dl>
 </div></blockquote>

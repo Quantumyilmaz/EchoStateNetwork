@@ -598,7 +598,7 @@ class ESN:
             self.reg_X = X if self.reg_X is None else self._cat([self.reg_X,X],axis=1)
             self.states = states if self.states is None else self._cat([self.states,states],axis=1)
 
-    def reg_fit(self,
+    def fit(self,
                 y: np.ndarray,
                 f_out_inverse=None,
                 regr=None,
@@ -847,7 +847,7 @@ class ESN:
                     wobbler=wobbler_train
                     )
         
-        self.reg_fit(y=training_data[:,self._initLen:],
+        self.fit(y=training_data[:,self._initLen:],
                     f_out_inverse=f_out_inverse,
                     regr=regr,
                     reg_type=reg_type,
