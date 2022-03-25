@@ -16,7 +16,14 @@ NoneType = type(None)
 
 sigmoid = lambda k: 1 / (1 + np.exp(-k))
 
-leaky_relu = lambda a: np.vectorize(lambda x: x if x>=0 else a*x,otypes=[np.float32,np.float64])
+# leaky_relu = lambda a: np.vectorize(lambda x: x if x>=0 else a*x,otypes=[np.float32,np.float64])
+
+def leaky_relu(slope):
+    def f(x):
+        y1 = ((x > 0) * x)                                                 
+        y2 = ((x <= 0) * x * slope)                                         
+        return y1 + y2 
+    return f
 
 softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=0)
 
