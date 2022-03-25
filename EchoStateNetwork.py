@@ -1213,6 +1213,17 @@ class ESN:
         in_ = self._atleastND(in_)
         out_ = self._atleastND(out_)
 
+        result = self.reservoir_layer.copy()
+
+        if out_ is not None:
+            result = self._cat((out_,result))
+        if in_ is not None:
+            result = self._cat((in_,result))
+        if self._bias is not None:
+            result = self._cat((self._bias_vec,result))
+
+        return result.ravel()
+
         # no u, no y
         if in_ is None and out_ is None:
             return self._cat((self._bias_vec,self.reservoir_layer)).ravel()
