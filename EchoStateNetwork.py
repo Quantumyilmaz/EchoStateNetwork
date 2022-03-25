@@ -510,7 +510,7 @@ class ESN:
                     y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
-                        X[:,t] =  self._pack_internal_state(None,y_temp)
+                        X[:,t] =  self._pack_internal_state(None,y_temp).ravel()
                         y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
@@ -518,18 +518,18 @@ class ESN:
                     u_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
-                        X[:,t] = self._pack_internal_state(u_temp)
+                        X[:,t] = self._pack_internal_state(u_temp).ravel()
                         u_temp = self._f_out(self._mm(self.Wout, X[:,t]))
                 else:
                     # training was with no u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer()
-                        X[:,t] = self._pack_internal_state()
+                        X[:,t] = self._pack_internal_state().ravel()
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer()
                     if t >= initLen:
-                        X[:,t-initLen] = self._pack_internal_state()
+                        X[:,t-initLen] = self._pack_internal_state().ravel()
         # no u, yes y
         elif update_rule_id == 1:
             if validation_mode:
@@ -537,13 +537,13 @@ class ESN:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
                     self.update_reservoir_layer(None,y_temp)
-                    X[:,t-initLen] = self._pack_internal_state(None,y_temp)
+                    X[:,t-initLen] = self._pack_internal_state(None,y_temp).ravel()
                     y_temp = y[:,t]  + self._wobbler[:,t]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(None,y_[:,t-1])
                     if t >= initLen:
-                        X[:,t-initLen] = self._pack_internal_state(None,y_[:,t-1])
+                        X[:,t-initLen] = self._pack_internal_state(None,y_[:,t-1]).ravel()
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
         # yes u, no y
@@ -554,18 +554,18 @@ class ESN:
                     y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
-                        X[:,t] = self._pack_internal_state(u[:,t],y_temp)
+                        X[:,t] = self._pack_internal_state(u[:,t],y_temp).ravel()
                         y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
                 else:
                     # yes u, no y
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t])
-                        X[:,t] = self._pack_internal_state(u[:,t])
+                        X[:,t] = self._pack_internal_state(u[:,t]).ravel()
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(u[:,t],None)
                     if t >= initLen:
-                        X[:,t-initLen] = self._pack_internal_state(u[:,t])
+                        X[:,t-initLen] = self._pack_internal_state(u[:,t]).ravel()
                 self._inSize = inSize
         # yes u, yes y
         elif update_rule_id == 3:
@@ -574,13 +574,13 @@ class ESN:
                 y_temp = self._y_train_last
                 for t in range(trainLen):
                     self.update_reservoir_layer(u[:,t],y_temp)
-                    X[:,t] = self._pack_internal_state(u[:,t],y_temp)
+                    X[:,t] = self._pack_internal_state(u[:,t],y_temp).ravel()
                     y_temp = y[:,t] + self._wobbler[:,t]
             else:
                 for t in range(1,trainLen):
                     self.update_reservoir_layer(u[:,t],y_[:,t-1])
                     if t >= initLen:
-                        X[:,t-initLen] = self._pack_internal_state(u[:,t],y_[:,t-1])
+                        X[:,t-initLen] = self._pack_internal_state(u[:,t],y_[:,t-1]).ravel()
                 self._inSize = inSize
                 self._outSize = outSize
                 self._y_train_last = y_[:,-1]
@@ -1216,13 +1216,13 @@ class ESN:
         result = self.reservoir_layer.copy()
 
         if out_ is not None:
-            result = self._cat((out_,result))
+            result = self._vstack((out_,result))
         if in_ is not None:
-            result = self._cat((in_,result))
+            result = self._vstack((in_,result))
         if self._bias is not None:
-            result = self._cat((self._bias_vec,result))
+            result = self._vstack((self._bias_vec,result))
 
-        return result.ravel()
+        return result
 
         # no u, no y
         if in_ is None and out_ is None:
