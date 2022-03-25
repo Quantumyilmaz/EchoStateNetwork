@@ -458,7 +458,7 @@ class ESN:
                 """Wobbler"""
                 assert isinstance(wobble,bool),"wobble parameter must be boolean."
                 if wobbler is not None:
-                    assert y.shape == wobbler, "Wobbler must have shape same as the output."
+                    assert y.shape == wobbler.shape, f"Wobbler must have shape same as the output: {y.shape} != {wobbler.shape}."
                     self._wobbler = wobbler
                 elif wobble:
                     self._wobbler = self._tensor(np.random.uniform(-1,1,size=y.shape).astype(self.dtype)/10000)
@@ -471,7 +471,7 @@ class ESN:
             if self._update_rule_id_val is None:
                 self._update_rule_id_val = update_rule_id
             else:
-                warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are switching to validation of type {new_val_type}.")
+                warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
                 #assert self._update_rule_id_val == update_rule_id
             
             self.validation_type = new_val_type
