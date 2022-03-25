@@ -311,7 +311,7 @@ class ESN:
 
         """
 
-        assert isinstance(desired_scaling,float)
+        assert isinstance(desired_scaling,(float,int))
         
         print(f"Scaling reservoir matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
 
