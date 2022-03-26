@@ -1362,6 +1362,8 @@ class ESN:
 
     def _torchify(self):
 
+        self._os = 'torch'
+
         self._mm = torch.matmul if self._mm == np.matmul else self._mm #Dont change this
 
         for W_str in ['Wout','W','Win','Wback']:
@@ -1379,8 +1381,6 @@ class ESN:
 
         if self._random_state is not None:
             torch.manual_seed(int(self._random_state))
-
-        self._os = 'torch'
 
     def _get_tensor_device(self,x):
         if isinstance(x,np.ndarray):
@@ -1583,7 +1583,7 @@ class ESNN(ESN,torch.nn.Module):
 
         self.__name = 'ESNN'
 
-        ESN.__init__(self,
+        super().__init__(
                     resSize=resSize, 
                     xn=xn, 
                     pn=pn, 
@@ -1605,7 +1605,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+self.__bias, out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
+        self.Wout = torch.nn.Linear(in_size+self.resSize+(self._bias is not None), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
