@@ -296,7 +296,7 @@ Executes a whole training/validation session by calling the methods ``excite``, 
         :``null_state_init``: If ``True``, starts the reservoir from null state. If ``False``, initializes randomly. Default is ``True``.
         :``custom_initState``: User can give custom initial reservoir state.
         :``regr``: User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn's regressor.
-        :``reg_type``: Regression type. Can be ``ridge`` or ``linear``. Default is ``linear``.
+        :``reg_type``: Regression type. Can be ``'ridge'``, ``'linear'`` or ``'pinv'`` (Moore-Penrose pseudo inverse). Default is ``'ridge'``.
         :``ridge_param``: Regularization factor in ridge regression.
         :``solver``: See `scikit documentation`_.
         :``error_measure``: Type of error to be displayed. Can be ``'mse'`` (Mean Squared Error) or ``'mape'`` (Mean Absolute Percentage Error).
