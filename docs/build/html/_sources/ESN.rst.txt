@@ -201,7 +201,7 @@ Does a regression to ``y`` using the registered reservoir updates, which can be 
         :``y``: Data to fit.
         :``f_out_inverse``: User can give custom output activation. Please give the INVERSE of the activation function. No activation is used by default.
         :``regr``: User can give custom regressor. Overrides other settings if provided. If not provided, will be set to scikit-learn's regressor.
-        :``reg_type``: Regression type. Can be ``ridge`` or ``linear``. Default is ``linear``.
+        :``reg_type``: Regression type. Can be ``'ridge'``, ``'linear'`` or ``'pinv'`` (Moore-Penrose pseudo inverse). Default is ``'ridge'``.
         :``ridge_param``: Regularization factor in ridge regression.
         :``solver``: See `scikit documentation`_.
         :``error_measure``: Type of error to be displayed. Can be ``'mse'`` (Mean Squared Error) or ``'mape'`` (Mean Absolute Percentage Error).

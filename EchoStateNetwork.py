@@ -665,20 +665,27 @@ class ESN:
 
         assert isinstance(y,(np.ndarray,torch.Tensor)), f'Please give numpy array or torch tensor. type(y):{type(y)}'
 
-        if regr is None:
-            if reg_type.lower() == "ridge":
-                regr = Ridge(ridge_param, fit_intercept=False,solver=solver)
-            else:
-                regr = LinearRegression(fit_intercept=False)
-        
         if f_out_inverse is None:
             assert self.__f_out_name == 'id', 'It seems that you are using an output activation, which is not the identity. Please provide the inverse of the activation, which is needed for the regression. In case you are using the identity function, please avoid passing it in as argument. Output activation is by default the identity.'
         y_ = y if f_out_inverse is None else self._fn_interpreter(f_out_inverse)(y)
 
+        reg_type_ = reg_type.lower()
+
+        if regr is None:
+            if reg_type_ == "ridge":
+                regr = Ridge(ridge_param, fit_intercept=False,solver=solver)
+            elif reg_type_ == "pinv":
+                regr = np.linalg.pinv
+            else:
+                regr = LinearRegression(fit_intercept=False)
+
         self.reg_X = kwargs.get("reg_X",self.reg_X)
         assert self.reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
-        regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
-        self.Wout = self._tensor(regr.coef_)
+        if reg_type_ == "pinv":
+            self.Wout = self._mm(y_,self._tensor(regr(self.reg_X)))
+        else:
+            regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
+            self.Wout = self._tensor(regr.coef_)
 
         if error_measure == "mse":
             error = mse(y_,self._mm( self.Wout , self.reg_X))
@@ -1328,7 +1335,7 @@ class ESN:
 
     def _tensor(self,x):
         assert x.dtype == self.dtype or str(x.dtype).split('.')[-1] == self.dtype
-        if self._mm == np.matmul:
+        if self._os == 'numpy':
             if isinstance(x,(np.ndarray,NoneType)):
                 return x
             elif isinstance(x,list):
