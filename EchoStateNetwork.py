@@ -378,7 +378,8 @@ class ESN:
     def get(self,prop:str):
         prop = prop.lower()
         assert prop in self.__settable, f'{prop} is not gettable.'
-        return self.__getattribute__(prop)
+        _prop = self.__settable[prop]['name']
+        return self.__getattribute__(_prop)
 
     def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None:
         self.__xn = xn
