@@ -503,8 +503,8 @@ class ESN:
             else:
                 assert self._update_rule_id_train == update_rule_id \
                     ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.validation_type} mode."
-            inSize = 0 if self._inSize is None else self._inSize
-            outSize = 0 if self._outSize is None else self._outSize
+            inSize = 0 if self._inSize is None else self._inSize * (self._update_rule_id_train>1)
+            outSize = 0 if self._outSize is None else self._outSize * (self._update_rule_id_train%2)
 
 
 
@@ -1260,7 +1260,7 @@ class ESN:
             return self._cat((self._bias_vec,in_,out_,self.reservoir_layer)).ravel()
     
     def _get_update_rule_id(self,in_=None,out_=None):
-        return min(3,(bool(in_ is not None) + 1)*(bool(in_ is not None)+bool(out_ is not None)))
+        return min(3,((in_ is not None) + 1)*((in_ is not None)+(out_ is not None)))
     
     def _update_rule_id_check(self,in_,out_,mode):
         #assert len(self.reservoir_layer.shape)>1 and self.reservoir_layer.shape[1]==1,self.reservoir_layer.shape
