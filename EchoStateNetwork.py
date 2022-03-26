@@ -4,6 +4,7 @@
 
 # Documentation: https://echostatenetwork.readthedocs.io/
 
+from pickle import TRUE
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
@@ -227,6 +228,7 @@ class ESN:
         self._os = 'numpy'
         self.__xn = xn
         self.__pn = pn
+        self.__bias = None
         if not hasattr(self,'_name'):
             self.__name = 'ESN'
 
@@ -253,7 +255,7 @@ class ESN:
 
                 size_info = w.shape[1] if w_name != 'Wout' else w.shape[0]
                 if w_name == 'Win':
-                    size_info -= bool(self._bias)
+                    size_info -= self.__bias
 
             self.__setattr__(size_str,size_info)
         
@@ -334,12 +336,15 @@ class ESN:
         self.W = self._send_tensor_to_device(self.W)
 
     def set(self,prop:str,val:Union[int,float,Callable,bool],verbose:bool=True) -> None:
-        
+
         prop = prop.lower()
         assert prop in self.__settable, f'{prop} is not settable.'
         _prop = self.__settable[prop]['name']
+        
+        # Setting the attribute for the first time in __init__.
         if not hasattr(self,_prop):
             warn = False
+        # Setting the attribute NOT the first time. warn is True if attempting to change the attribute from a not None value.
         else:
             warn = False if getattr(self,_prop) is None else True
 
@@ -353,9 +358,10 @@ class ESN:
             if warn is False:
                 assert not hasattr(self,_prop) or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
 
+
+        assert val is not None or warn is False, f'{prop} cannot be set to None.'
         if verbose:
             if warn:
-                assert val is not None, f'{prop} cannot be set to None.'
                 warnings.warn(f"You have already been using {getattr(self,_prop)} as {prop}. It has been changed to {val}.")
             else:
                 if val is not None:
@@ -364,6 +370,9 @@ class ESN:
         self.__setattr__(_prop,val)
 
         if prop == 'bias':
+            if verbose and self._bias == 0:
+                warnings.warn("You have set the bias to zero.")
+            self.__bias = False if self._bias is None else True
             self._make_bias_vec()
 
     def get(self,prop:str):
@@ -507,7 +516,7 @@ class ESN:
 
         # Exciting the reservoir states
         assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-        X = self._tensor(np.zeros((bool(self._bias)+self.resSize + inSize + outSize,trainLen-initLen),dtype=self.dtype))
+        X = self._tensor(np.zeros((self.__bias + self.resSize + inSize + outSize,trainLen-initLen),dtype=self.dtype))
 
         # no u, no y
         if update_rule_id == 0:
@@ -596,7 +605,7 @@ class ESN:
             raise NotImplementedError("Could not find a case for this training.")       
 
         
-        states = X[inSize+outSize+bool(self._bias):,:]
+        states = X[inSize+outSize+self.__bias:,:]
         assert states.shape[0] == self.resSize
         if validation_mode:
             self.val_states = states
@@ -895,6 +904,8 @@ class ESN:
 
         self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_)
 
+        assert not self.__check_nan(self.reservoir_layer), 'NaN value encountered in reservoir layer!'
+
     def update_reservoir_layers_serially(self
         , in_: Union[np.ndarray, torch.Tensor, NoneType] = None
         , out_: Union[np.ndarray, torch.Tensor, NoneType] = None
@@ -1078,7 +1089,7 @@ class ESN:
         elif self._os == 'torch':
             return torch.linalg.eigvals(self.W.cpu()).abs().max().item()
         else:
-            raise Exception("Something is terribly wrong.")
+            raise Exception("Unknown os type.")
 
     def _get_spectral_norm(self):
         if self._os == 'numpy':
@@ -1086,7 +1097,7 @@ class ESN:
         elif self._os == 'torch':
             return torch.linalg.svdvals(self.W.cpu()).max().item()
         else:
-            raise Exception("Something is terribly wrong.")
+            raise Exception("Unknown os type.")
 
     def _get_update(self
                     ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
@@ -1105,8 +1116,8 @@ class ESN:
             assert self._get_tensor_device(in_) == self.device, (self.device,in_)
             if self.Win is None:
                 self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
-            assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+bool(self._bias),[self.Win.shape,in_.shape]
-            if self._bias is not None:
+            assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self.Win.shape,in_.shape]
+            if self.__bias:
                 inPart = self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_))))
             else:
                 inPart = self._mm(self.Win, self._atleastND(in_))
@@ -1135,7 +1146,7 @@ class ESN:
     def _make_bias_vec(self):
         # assert self._bias != 0,'Bias equal to zero is forbidden.'
 
-        if self._bias is None:
+        if not self.__bias:
             self._bias_vec = None
         else:
             if self._layer_mode == 'single':
@@ -1226,7 +1237,7 @@ class ESN:
             result = self._vstack((out_,result))
         if in_ is not None:
             result = self._vstack((in_,result))
-        if self._bias is not None:
+        if self.__bias:
             result = self._vstack((self._bias_vec,result))
 
         return result
@@ -1386,7 +1397,7 @@ class ESN:
         else:
             assert self._update_rule_id_train==2
 
-        if self._bias:
+        if self.__bias:
             self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self._bias_vec).transpose(-1,-2))).transpose(-1,-2)
         else:
             self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
@@ -1414,7 +1425,7 @@ class ESN:
 
         if w_name == 'Win':
             assert _size is not None, 'Please provide input size of the reservoir.'
-            w = np.random.rand(self.resSize,bool(self._bias)+_size) - 0.5
+            w = np.random.rand(self.resSize,self.__bias+_size) - 0.5
             # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
             # self.Win = np.where(Win==0, -1, Win)
         elif w_name == 'W':
@@ -1431,7 +1442,7 @@ class ESN:
         if self.Win is not None:
             assert self.Win.shape[0] == self.W.shape[0], f'Input matrix has shape, which is inconsistent with the reservoir matrix: {self.Win.shape[0]} != {self.W.shape[0]}'
             assert self.Win.shape[0] == self.resSize, f'Mismatched reservoir size and input weights: {self.Win.shape[0]} != {self.resSize}'
-            assert self.Win.shape[1] == self._inSize + bool(self._bias), f'Mismatched input size and input weights: {self.Win.shape[1]} != {self._inSize + bool(self._bias)}'
+            assert self.Win.shape[1] == self._inSize + self.__bias, f'Mismatched input size and input weights: {self.Win.shape[1]} != {self._inSize + self.__bias}'
             if self.Wout is not None:
                 assert self.Wout.shape[1] ==self.W.shape[0] + self.Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self.Wout.shape[1]} != {self.W.shape[0] + self.Win.shape[1]}'
                 assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
@@ -1442,6 +1453,14 @@ class ESN:
             if self.Wout is not None:
                 assert self.Wout.shape[0] == self.Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self.Wout.shape[0]} != {self.Wback.shape[1]}'
                 assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
+    
+    def __check_nan(self,x):
+        if self._os == 'numpy':
+            return np.any(np.isnan(x))
+        elif self._os == 'torch':
+            return torch.any(torch.isnan(x)).item()
+        else:
+            raise Exception("Unknown os type.")
 
 
 class ESNX(ESN):
@@ -1578,7 +1597,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+bool(self._bias), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
+        self.Wout = torch.nn.Linear(in_size+self.resSize+self.__bias, out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
@@ -1608,7 +1627,7 @@ class ESNN(ESN,torch.nn.Module):
         #     assert self._update_rule_id_train==2
 
 
-        if self._bias:
+        if self.__bias:
             self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self._bias_vec)))
         else:
             self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer))
