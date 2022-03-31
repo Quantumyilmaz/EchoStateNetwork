@@ -4,11 +4,11 @@
 
 # Documentation: https://echostatenetwork.readthedocs.io/
 
-from pickle import TRUE
+
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
-from typing import Any, Callable, Optional, Union
+from typing import Callable, Optional, Union
 import torch
 import pandas as pd
 # from functools import reduce
@@ -426,9 +426,13 @@ class ESN:
             - keyword arguments:
 
                 - validation_mode: You can use this method in validation mode after calling this method to prepare the reservoir for validation.
+                
+                - verbose: Set to False to disable messages and warnings.
         """
 
         # Some stuff needs checking right out the bat.
+
+        verbose = kwargs.get('verbose',True)
 
         validation_mode = kwargs.get("validation_mode",False)
         assert bool(initLen)+bool(initTrainLen_ratio) < 2, "Please give either initLen or initTrainLen_ratio."
@@ -488,13 +492,15 @@ class ESN:
             if self._update_rule_id_val is None:
                 self._update_rule_id_val = update_rule_id
             else:
-                warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
+                if verbose:
+                    warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
                 #assert self._update_rule_id_val == update_rule_id
             
             self.validation_type = new_val_type
 
             if self.validation_type == validation_rule_dict[0][0]:
-                warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
+                if verbose:
+                    warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
 
             if (self._update_rule_id_train - update_rule_id) == 1 and update_rule_id%2 == 0:
                 pass
@@ -728,7 +734,12 @@ class ESN:
 
             - wobbler: User can provide custom noise. Disabled per default.
 
+            - verbose: Set to False to disable messages and warnings.
+
         """
+
+        verbose = kwargs.get('verbose',True)
+
 
         assert self.Wout is not None
         assert isinstance(u,(np.ndarray,torch.Tensor,NoneType)) and isinstance(y,(np.ndarray,torch.Tensor,NoneType)), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
@@ -759,7 +770,7 @@ class ESN:
         else:
             self._wobbler = np.zeros(shape=(self.Wout.shape[0],valLen),dtype=self.dtype)
 
-        self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True)
+        self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True,verbose=verbose)
 
         return self._f_out(self._mm(self.Wout, self._X_val))
 
@@ -1506,7 +1517,7 @@ class ESNX(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
         raise NotImplementedError
 
 
@@ -1552,7 +1563,7 @@ class ESNS(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
         raise NotImplementedError
 
 
@@ -1645,5 +1656,5 @@ class ESNN(ESN,torch.nn.Module):
     
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Any] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
         raise NotImplementedError
