@@ -673,6 +673,8 @@ class ESN:
 
         if f_out_inverse is None:
             assert self.__f_out_name == 'id', 'It seems that you are using an output activation, which is not the identity. Please provide the inverse of the activation, which is needed for the regression. In case you are using the identity function, please avoid passing it in as argument. Output activation is by default the identity.'
+        else:
+            assert self.__f_out_name != 'id', 'You have passed in the inverse of your output activation, yet no output activation was specified!'
         y_ = y if f_out_inverse is None else self._fn_interpreter(f_out_inverse)(y)
 
         reg_type_ = reg_type.lower()
