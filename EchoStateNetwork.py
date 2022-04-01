@@ -1320,29 +1320,29 @@ class ESN:
             self.__f_out_name = 'custom'
             return f
 
-    def _vstack(self,x):
-        if self._mm == np.matmul:
-            return np.vstack(x)
+    def _vstack(self,x,*args,**kwargs):
+        if self._os == 'numpy':
+            return np.vstack(x,*args,**kwargs)
         else:
-            return torch.vstack(x)
+            return torch.vstack(x,*args,**kwargs)
 
-    def _hstack(self,x):
-        if self._mm == np.matmul:
-            return np.hstack(x)
+    def _hstack(self,x,*args,**kwargs):
+        if self._os == 'numpy':
+            return np.hstack(x,*args,**kwargs)
         else:
-            return torch.hstack(x)
+            return torch.hstack(x,*args,**kwargs)
     
-    def _cat(self,x):
-        if self._mm == np.matmul:
-            return np.concatenate(x)
+    def _cat(self,x,*args,**kwargs):
+        if self._os == 'numpy':
+            return np.concatenate(x,*args,**kwargs)
         else:
-            return torch.cat(x)
+            return torch.cat(x,*args,**kwargs)
 
-    def _column_stack(self,x):
-        if self._mm == np.matmul:
-            return np.column_stack(x)
+    def _column_stack(self,x,*args,**kwargs):
+        if self._os == 'numpy':
+            return np.column_stack(x,*args,**kwargs)
         else:
-            return torch.column_stack(x)            
+            return torch.column_stack(x,*args,**kwargs )
 
     def _tensor(self,x):
         assert x.dtype == self.dtype or str(x.dtype).split('.')[-1] == self.dtype
@@ -1366,7 +1366,7 @@ class ESN:
                 raise NotImplementedError
 
     def _get_clone(self,x):
-        if self._mm == np.matmul:
+        if self._os == 'numpy':
             return x.copy()
         else:
             return x.clone()
@@ -1375,7 +1375,7 @@ class ESN:
 
         self._os = 'torch'
 
-        self._mm = torch.matmul if self._mm == np.matmul else self._mm #Dont change this
+        self._mm = torch.matmul if self._os == 'numpy' else self._mm #Dont change this
 
         for W_str in ['Wout','W','Win','Wback']:
             W_ = self.__getattribute__(W_str)
