@@ -80,7 +80,7 @@ Echo State Network
 ESN.scale_reservoir_weights
 ---------------------------
 
-Scales the reservoir connection matrix to have certain spectral norm or radius. One can directly assign the desired value to ``spectral_radius`` or ``spectral_radius`` attributes instead of using this method.
+Scales the reservoir connection matrix to have certain spectral norm or radius. One can directly assign the desired value to ``spectral_radius`` or ``spectral_norm`` attributes instead of using this method.
 
 
     .. method:: scale_reservoir_weights(desired_scaling: float, reference: str) -> None
