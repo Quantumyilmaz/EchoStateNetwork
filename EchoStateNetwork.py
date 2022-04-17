@@ -8,12 +8,10 @@
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Any
 import torch
 import pandas as pd
 # from functools import reduce
-
-NoneType = type(None)
 
 sigmoid = lambda k: 1 / (1 + np.exp(-k))
 
@@ -54,7 +52,52 @@ weight_dict = {'Win':'input','W':'reservoir','Wout':'output','Wback':'feedback'}
 def weight_message(weight_name:str,action:str):
     message = f'{weight_name} ({weight_dict[weight_name]} weights)'
     print(message,action+'.')
-size_dict = {key:val for key,val in zip(weight_dict,['_inSize','resSize','_outSize','_outSize'])}
+size_dict = {key:val for key,val in zip(weight_dict,['_inSize','_resSize','_outSize','_outSize'])}
+
+settables = {'dtype':
+                {'name':'_dtype','default':'float64'},
+            'device':
+                {'name':'_device','default':'cpu'}, 
+            'bias':
+                {'name':'_bias','default':None},
+            'leak_rate':
+                {'name':'_leak_rate','default':1},
+            'leak_version':
+                {'name':'_leak_version','default':0},
+            'f':    
+                {'name':'_f','default':'id'},
+            'f_out':
+                {'name':'_f_out','default':'id'},
+            'resSize':
+                {'name':'_resSize','default':None},
+            'reservoir_layer':
+                {'name':'_reservoir_layer','default':None},
+            'spectral_radius':
+                {'name':'_spectral_radius','default':None},
+            'spectral_norm':
+                {'name':'_spectral_norm','default':None},
+            'W':
+                {'name':'_W','default':None},
+            'Win':
+                {'name':'_Win','default':None},
+            'Wout':
+                {'name':'_Wout','default':None},
+            'Wback':
+                {'name':'_Wback','default':None},
+            }
+
+def esnpropertyget(fname):
+    def get(esn):
+        return getattr(esn,esn._settable[fname]['name'])
+    return get
+def esnpropertyset(fname):
+    def set(esn,val):
+        esn._set(fname,val=val)
+    return set
+
+class esnproperty(property):
+    def __init__(self, fget, fset=None, fdel=None, doc=None):
+        super().__init__(esnpropertyget(fget.__name__),esnpropertyset(fget.__name__),fdel,doc)
 
 def at_least_2d(arr):
     if arr is None:
@@ -96,19 +139,76 @@ def is_normal(x):
 
 # print(A @ B)
 
+
+# def updates_reservoir_layer(func):
+    #     def wrapper(self,*args,**kwargs):
+    #         print("Something is happening before the function is called.")
+    #         func(self,*args,**kwargs)
+    #         print("Something is happening after the function is called.")
+    #     return wrapper
+
 class ESN:
 
-    __settable = { 'bias':
-                        {'name':'_bias','default':None},
-                    'leak_rate':
-                        {'name':'_leak_rate','default':1},
-                    'leak_version':
-                        {'name':'_leak_version','default':0},
-                    'f':    
-                        {'name':'_f','default':'id'},
-                    'f_out':
-                        {'name':'_f_out','default':'id'}
-                    }
+    _settable = settables
+    __stt = np.ndarray | torch.Tensor #SupportedTensorTypes
+    __stt_str = 'numpy array or pytorch tensor' #SupportedTensorTypes
+    __change_unsupported = ['dtype','device','resSize','reservoir_layer','W']
+    __os_type_dict = {'numpy':np.ndarray,'torch':torch.Tensor}
+
+
+    
+    states = None
+    val_states = None
+    training_type = None
+    validation_type = None
+    reg_X = None
+    no_of_reservoirs = None
+    batch_size = None
+
+    _Win = None
+    _W = None
+    _Wout = None
+    _Wback = None
+    
+    _U = None
+    _initLen = None
+    _update_rule_id_train = None
+    _update_rule_id_val = None
+    _X_val = None
+
+    __bias = None
+    __name = 'ESN'
+
+    @esnproperty
+    def dtype(self):pass
+    @esnproperty
+    def device(self):pass
+    @esnproperty
+    def bias(self):pass
+    @esnproperty
+    def leak_rate(self):pass
+    @esnproperty
+    def leak_version(self):pass
+    @esnproperty
+    def f(self):pass
+    @esnproperty
+    def f_out(self):pass
+    @esnproperty
+    def resSize(self):pass
+    @esnproperty
+    def reservoir_layer(self):pass
+    @esnproperty
+    def spectral_radius(self):pass
+    @esnproperty
+    def spectral_norm(self):pass
+    @esnproperty
+    def W(self):pass
+    @esnproperty
+    def Win(self):pass
+    @esnproperty
+    def Wback(self):pass
+    @esnproperty
+    def Wout(self):pass
 
     """
     DOCUMENTATION
@@ -167,21 +267,14 @@ class ESN:
 
     """
 
-    # def updates_reservoir_layer(func):
-    #     def wrapper(self,*args,**kwargs):
-    #         print("Something is happening before the function is called.")
-    #         func(self,*args,**kwargs)
-    #         print("Something is happening after the function is called.")
-    #     return wrapper
-
     def __init__(self,
-                resSize: int=400,
-                xn: list=[0,0.4,-0.4],
-                pn: list=[0.9875, 0.00625, 0.00625],
-                random_state: float=None,
+                resSize: Optional[int]=400,
+                xn: Optional[list[float]]=[0,0.4,-0.4],
+                pn: Optional[list[float]]=[0.9875, 0.00625, 0.00625],
+                random_state: Optional[float]=None,
                 null_state_init: bool=True,
-                custom_initState: np.ndarray=None,
-                **kwargs) -> NoneType:
+                custom_initState: Optional[np.ndarray]=None,
+                **kwargs) -> None:
         
         """ 
 
@@ -213,94 +306,63 @@ class ESN:
                 - bias: Strength of bias. Disabled per default.
                 - W,Win,Wout,Wback
                 - use_torch: Use pytorch instead of numpy. Will use cuda if available.
+                - device: Give 'cpu' if use_torch is True and CUDA is available on your device but you want to use CPU.
                 - dtype: Data type of reservoir. Default is float64.
         """
 
+        W = kwargs.get('W')
+        assert W is not None or isinstance(resSize,int), f"Please provide W ({weight_dict['W']} matrix) or resSize."
+
+        self._random_state = random_state
+        if self._random_state is not None:
+            np.random.seed(int(random_state))
+
+        self._verbose = True
         verbose = kwargs.get("verbose",True)
         use_torch = kwargs.get("use_torch",False)
 
-        self.dtype = kwargs.get('dtype','float64')
-        self.device = 'cpu'
+        self._os = 'numpy'
         self._mm = np.matmul if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
-        self._U = None
         self._layer_mode = 'single' #batch, ensemble
         self._atleastND = at_least_2d
-        self._os = 'numpy'
-        self.__xn = xn
-        self.__pn = pn
-        self.__bias = None
-        if not hasattr(self,'_name'):
-            self.__name = 'ESN'
+        self.__xn = xn if xn is not None else [0,0.4,-0.4]
+        self.__pn = pn if pn is not None else [0.9875, 0.00625, 0.00625]
 
-        for settable in self.__settable:
-            default_value = self.__settable[settable]['default']
-            self.set(settable, kwargs.get(settable,default_value),verbose=verbose)
-
-        self._random_state = random_state
-        if self._random_state:
-            np.random.seed(int(random_state))
-
-        assert kwargs.get('W') is not None or isinstance(resSize,int), f"Please provide W ({weight_dict['W']} matrix) or resSize."
-
-        for w_name in weight_dict:
-            w = kwargs.get(w_name)
-            self.__setattr__(w_name,w)
-            size_str = size_dict[w_name]
-            size_info = None
-
-            if w is not None:
-                assert len(w.shape)==2 and isinstance(w,np.ndarray)
-                assert w.dtype == self.dtype, f"Data type of the {weight_dict[w_name]} connection matrix provided by the user does not match the reservoir's data type: {self.dtype} vs. {w.dtype}.\
-                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
-
-                size_info = w.shape[1] if w_name != 'Wout' else w.shape[0]
-                if w_name == 'Win':
-                    size_info -= self.__bias
-
-            self.__setattr__(size_str,size_info)
         
-        if self.W is None:
-            self.resSize = resSize
-            self.W = self.make_connection('W')
+        __init__set = [to_be_set for to_be_set in self._settable if not to_be_set in ['W','resSize','dtype']]
+        self._dtype = kwargs.get('dtype',self._settable['dtype']['default'])
+        if W is None:
+            self._set('W', self.make_connection('W',verbose=verbose,size=resSize),verbose=verbose)
         else:
+            self._set('W',W,verbose=verbose)
             assert self.resSize == resSize, 'Specified reservoir size and the reservoir matrix are incompatible.'
 
-        self.__check_connections()
+        for settable in __init__set:
+            default_value = self._settable[settable]['default']
+            self._set(settable, kwargs.get(settable,default_value),verbose=verbose)
 
         if custom_initState is None:
-            self._core_nodes = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
-            self.reservoir_layer = self._core_nodes.copy() # self._core_nodes never gets changed
+            self._core_nodes = np.zeros((self._resSize,1),dtype=self._dtype) if null_state_init else np.random.rand(self._resSize,1).astype(self._dtype)
+            self._reservoir_layer = self._core_nodes.copy() # self._core_nodes never gets changed
         else:
-            assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
+            assert custom_initState.shape == (self._resSize,1),f"Please give custom initial state with shape ({self._resSize},1)."
             self._core_nodes = custom_initState.copy()
-            self.reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
+            self._reservoir_layer = custom_initState.copy() # self._core_nodes never gets changed
         
-        self._reservoir_layer_init = self.reservoir_layer.copy()
+        self._reservoir_layer_init = self._reservoir_layer.copy()
 
         if use_torch:
-            # torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
+            self._device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
-        self._update_rule_id_train = None
-        self._update_rule_id_val = None
-        self._initLen = None
-        self.states = None
-        self.val_states = None
-        self.training_type = None
-        self.validation_type = None
-        self.reg_X = None
-        self._X_val = None
+        self._spectral_radius = self.__spectral_radius()
+        self._spectral_norm = self.__spectral_norm()
 
-        self.spectral_radius = self._get_spectral_radius()
-        self.spectral_norm = self._get_spectral_norm()
         if verbose:
-            print(f'{self.__name} generated. Number of units: {self.resSize} Spectral Radius: {self.spectral_radius}')
+            print(f'{self.__name} generated. Number of units: {self._resSize} Spectral Radius: {self.spectral_radius}')
 
-        self.no_of_reservoirs = None
-        self.batch_size = None
 
-    def scale_reservoir_weights(self,desired_scaling: float, reference='ev') -> NoneType:
+    def scale_reservoir_weights(self,desired_scaling: float, reference:str) -> None:
 
         """ 
         Description
@@ -313,90 +375,44 @@ class ESN:
 
         """
 
-        assert isinstance(desired_scaling,(float,int))
+        assert isinstance(desired_scaling,float | int)
         
         print(f"Scaling reservoir matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
 
-        if self._get_tensor_device(self.W) != 'cpu':
-            self.W = self.W.cpu()
+        if self._get_tensor_device(self._W) != 'cpu':
+            self._W = self._W.cpu()
 
         if reference=='ev':
-            self.W *= desired_scaling / self.spectral_radius
-            self.spectral_radius = self._get_spectral_radius()
-            self.spectral_norm = self._get_spectral_norm()
+            self._W *= desired_scaling / self.spectral_radius
+            self._spectral_radius = self.__spectral_radius()
+            self._spectral_norm = self.__spectral_norm()
             print(f'Done: {self.spectral_radius}')
         elif reference=='sv':
-            self.W *= desired_scaling / self.spectral_norm
-            self.spectral_norm = self._get_spectral_norm()
-            self.spectral_radius = self._get_spectral_radius()
+            self._W *= desired_scaling / self.spectral_norm
+            self._spectral_radius = self.__spectral_radius()
+            self._spectral_norm = self.__spectral_norm()
             print(f'Done: {self.spectral_norm}')
         else:
             raise Exception('{reference} is unsupported.')
         
-        self.W = self._send_tensor_to_device(self.W)
+        self._W = self._send_tensor_to_device(self._W)
 
-    def set(self,prop:str,val:Union[int,float,Callable,bool],verbose:bool=True) -> None:
-
-        prop = prop.lower()
-        assert prop in self.__settable, f'{prop} is not settable.'
-        _prop = self.__settable[prop]['name']
-        
-        # Setting the attribute for the first time in __init__.
-        if not hasattr(self,_prop):
-            warn = False
-        # Setting the attribute NOT the first time. warn is True if attempting to change the attribute from a not None value.
-        else:
-            warn = False if getattr(self,_prop) is None else True
-
-        if prop == 'f' or prop == 'f_out':
-            val = self._fn_interpreter(val)
-        elif prop == 'leak_rate':
-            assert 0<=val<=1, 'Leak rate must lie in the interval [0,1].'
-        elif prop == 'leak_version':
-            assert [0,1].count(val), 'Leak version must be 0 or 1.'
-        elif prop == 'bias':
-            if warn is False:
-                assert not hasattr(self,_prop) or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
-
-
-        assert val is not None or warn is False, f'{prop} cannot be set to None.'
-        if verbose:
-            if warn:
-                warnings.warn(f"You have already been using {getattr(self,_prop)} as {prop}. It has been changed to {val}.")
-            else:
-                if val is not None:
-                    print(f'{prop} has been set to {val}.')
-
-        self.__setattr__(_prop,val)
-
-        if prop == 'bias':
-            if verbose and self._bias == 0:
-                warnings.warn("You have set the bias to zero.")
-            self.__bias = False if self._bias is None else True
-            self._make_bias_vec()
-
-    def get(self,prop:str):
-        prop = prop.lower()
-        assert prop in self.__settable, f'{prop} is not gettable.'
-        _prop = self.__settable[prop]['name']
-        return self.__getattribute__(_prop)
-
-    def reconnect_reservoir(self,xn: list[Union[int,float]],pn: list[Union[int,float]],verbose:bool=True) -> None:
+    def reconnect_reservoir(self,xn: list[float],pn: list[float],**kwargs) -> None:
         self.__xn = xn
         self.__pn = pn
-        self.make_connection('W',inplace=True,verbose=0)
-        if verbose:
+        self.make_connection('W',inplace=True,verbose=False)
+        if kwargs.get('verbose',self._verbose):
             print('Reservoir reconnected.')
 
     def excite(self,
-                u: np.ndarray=None,
-                y: np.ndarray=None,
-                initLen: int=None, 
-                trainLen: int=None,
-                initTrainLen_ratio: float=None,
+                u: Optional[np.ndarray]=None,
+                y: Optional[np.ndarray]=None,
+                initLen: Optional[int]=None, 
+                trainLen: Optional[int]=None,
+                initTrainLen_ratio: Optional[float]=None,
                 wobble: bool=False,
-                wobbler: np.ndarray=None,
-                **kwargs) -> NoneType:
+                wobbler: Optional[np.ndarray]=None,
+                **kwargs) -> None:
         """
 
         Description
@@ -432,11 +448,11 @@ class ESN:
 
         # Some stuff needs checking right out the bat.
 
-        verbose = kwargs.get('verbose',True)
+        verbose = kwargs.get('verbose',self._verbose)
 
         validation_mode = kwargs.get("validation_mode",False)
         assert bool(initLen)+bool(initTrainLen_ratio) < 2, "Please give either initLen or initTrainLen_ratio."
-        assert isinstance(u,(np.ndarray,torch.Tensor,NoneType)) and isinstance(y,(np.ndarray,torch.Tensor,NoneType)), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
+        assert isinstance(u,Optional[self.__stt]) and isinstance(y,Optional[self.__stt]), f'Please give {self.__stt_str}. type(u):{type(u)} and type(y):{type(y)}'
         
         # Update rule recognition based on function inputs
 
@@ -466,7 +482,6 @@ class ESN:
                 assert wobbler is None and not wobble ,"Wobble states are desired only in the case of teacher forced setting."
             
             if update_rule_id > 1: #if u is not None:
-                # u = u.copy()
                 assert len(u.shape) == 2
                 inSize = u.shape[0]
                 trainLen = u.shape[-1] if trainLen is None else trainLen
@@ -482,7 +497,7 @@ class ESN:
                     assert y.shape == wobbler.shape, f"Wobbler must have shape same as the output: {y.shape} != {wobbler.shape}."
                     self._wobbler = wobbler
                 elif wobble:
-                    self._wobbler = self._tensor(np.random.uniform(-1,1,size=y.shape).astype(self.dtype)/10000)
+                    self._wobbler = self._tensor(np.random.uniform(-1,1,size=y.shape).astype(self._dtype)/10000)
                 else:
                     self._wobbler = 0
                 y_ = y + self._wobbler
@@ -492,14 +507,14 @@ class ESN:
             if self._update_rule_id_val is None:
                 self._update_rule_id_val = update_rule_id
             else:
-                if verbose:
+                if self._verbose:
                     warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
                 #assert self._update_rule_id_val == update_rule_id
             
             self.validation_type = new_val_type
 
             if self.validation_type == validation_rule_dict[0][0]:
-                if verbose:
+                if self._verbose:
                     warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
 
             if (self._update_rule_id_train - update_rule_id) == 1 and update_rule_id%2 == 0:
@@ -523,26 +538,26 @@ class ESN:
 
         # Exciting the reservoir states
         assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-        X = self._tensor(np.zeros((self.__bias + self.resSize + inSize + outSize,trainLen-initLen),dtype=self.dtype))
+        X = self._tensor(np.zeros((self.__bias + self._resSize + inSize + outSize,trainLen-initLen),dtype=self._dtype))
 
         # no u, no y
         if update_rule_id == 0:
             if validation_mode:
                 if self._update_rule_id_train == 1:
                     # training was with no u, yes y. now validation with no u, yes y_pred
-                    y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    y_temp = self.__call__(self.reg_X[:,-1])
                     for t in range(trainLen):
                         self.update_reservoir_layer(None,y_temp)
                         X[:,t] =  self._pack_internal_state(None,y_temp).ravel()
-                        y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
+                        y_temp = self.__call__(X[:,t]) + self._wobbler[:,t]
                 elif self._update_rule_id_train == 2:
                     # training was with yes u, no y. now validation with yes u_pred, no y
                     # This is only useful when input data and output data differ by a phase.
-                    u_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    u_temp = self.__call__(self.reg_X[:,-1])
                     for t in range(trainLen):
                         self.update_reservoir_layer(u_temp,None)
                         X[:,t] = self._pack_internal_state(u_temp).ravel()
-                        u_temp = self._f_out(self._mm(self.Wout, X[:,t]))
+                        u_temp = self.__call__(X[:,t])
                 else:
                     # training was with no u, no y
                     for t in range(trainLen):
@@ -574,11 +589,11 @@ class ESN:
             if validation_mode:
                 if self._update_rule_id_train == 3:
                     # yes u, yes y_pred (generative)
-                    y_temp = self._f_out(self._mm(self.Wout, self.reg_X[:,-1]))
+                    y_temp = self.__call__(self.reg_X[:,-1])
                     for t in range(trainLen):
                         self.update_reservoir_layer(u[:,t],y_temp)
                         X[:,t] = self._pack_internal_state(u[:,t],y_temp).ravel()
-                        y_temp = self._f_out(self._mm(self.Wout, X[:,t])) + self._wobbler[:,t]
+                        y_temp = self.__call__(X[:,t]) + self._wobbler[:,t]
                 else:
                     # yes u, no y
                     for t in range(trainLen):
@@ -613,7 +628,7 @@ class ESN:
 
         
         states = X[inSize+outSize+self.__bias:,:]
-        assert states.shape[0] == self.resSize
+        assert states.shape[0] == self._resSize
         if validation_mode:
             self.val_states = states
             self._X_val = X
@@ -623,8 +638,8 @@ class ESN:
 
     def fit(self,
                 y: np.ndarray,
-                f_out_inverse=None,
-                regr=None,
+                f_out_inverse:Optional[Callable]=None,
+                regr: Optional[Callable]=None,
                 reg_type: str="ridge",
                 ridge_param: float=1e-8,
                 solver: str="auto",
@@ -669,7 +684,7 @@ class ESN:
 
         """
 
-        assert isinstance(y,(np.ndarray,torch.Tensor)), f'Please give numpy array or torch tensor. type(y):{type(y)}'
+        assert isinstance(y,self.__stt), f'Please give numpy array or torch tensor. type(y):{type(y)}'
 
         if f_out_inverse is None:
             assert self.__f_out_name == 'id', 'It seems that you are using an output activation, which is not the identity. Please provide the inverse of the activation, which is needed for the regression. In case you are using the identity function, please avoid passing it in as argument. Output activation is by default the identity.'
@@ -690,29 +705,27 @@ class ESN:
         self.reg_X = kwargs.get("reg_X",self.reg_X)
         assert self.reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
         if reg_type_ == "pinv":
-            self.Wout = self._mm(y_,self._tensor(regr(self.reg_X)))
+            self._Wout = self._mm(y_,self._tensor(regr(self.reg_X)))
         else:
             regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
-            self.Wout = self._tensor(regr.coef_)
+            self._Wout = self._tensor(regr.coef_)
 
         if error_measure == "mse":
-            error = mse(y_,self._mm( self.Wout , self.reg_X))
-            self.mse_train = error
+            error = mse(y_,self._mm( self._Wout , self.reg_X))
         elif error_measure == "mape":
-            error = mape(y_,self._mm( self.Wout , self.reg_X))
-            self.mape_train = error
+            error = mape(y_,self._mm( self._Wout , self.reg_X))
         else:
             raise NotImplementedError("Unknown error measure type.")
         
-        if kwargs.get("verbose",1):
+        if kwargs.get("verbose",self._verbose):
             print("Training ",error_measure.upper(),": ",error)
 
         return error
    
     def validate(self,
-                u: np.ndarray=None,
-                y: np.ndarray=None,
-                valLen: int=None,
+                u: Optional[np.ndarray]=None, \
+                y: Optional[np.ndarray]=None,
+                valLen: Optional[int]=None,
                 **kwargs) -> np.ndarray:
 
         """
@@ -740,11 +753,11 @@ class ESN:
 
         """
 
-        verbose = kwargs.get('verbose',True)
+        verbose = kwargs.get('verbose',self._verbose)
 
 
-        assert self.Wout is not None
-        assert isinstance(u,(np.ndarray,torch.Tensor,NoneType)) and isinstance(y,(np.ndarray,torch.Tensor,NoneType)), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
+        assert self._Wout is not None
+        assert isinstance(u,Optional[self.__stt]) and isinstance(y,Optional[self.__stt]), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
 
         assert u is not None or y is not None or valLen is not None, 'valLen is needed to know how many steps the reservoir should generate outputs.'
         
@@ -766,32 +779,32 @@ class ESN:
         assert self._update_rule_id_train % 2 or not wobble
         assert wobbler is None or wobble
         if wobble and wobbler is None:
-           self._wobbler = np.random.uniform(-1,1,size=(self.Wout.shape[0],valLen)).astype(self.dtype)/10000
+           self._wobbler = np.random.uniform(-1,1,size=(self._Wout.shape[0],valLen)).astype(self._dtype)/10000
         elif wobbler is not None:
             self._wobbler = wobbler
         else:
-            self._wobbler = np.zeros(shape=(self.Wout.shape[0],valLen),dtype=self.dtype)
+            self._wobbler = np.zeros(shape=(self._Wout.shape[0],valLen),dtype=self._dtype)
 
         self.excite(u, y, initLen=0,trainLen=valLen,wobble=wobble,wobbler=self._wobbler,validation_mode=True,verbose=verbose)
 
-        return self._f_out(self._mm(self.Wout, self._X_val))
+        return self.__call__(self._X_val)
 
     def session(self,
-                X_t: np.ndarray=None,
-                y_t: np.ndarray=None,
-                X_v: np.ndarray=None,
-                y_v: np.ndarray=None,
-                training_data: np.ndarray=None,
-                f_out_inverse=None,
-                initLen: int=None, 
-                initTrainLen_ratio: float=None,
-                trainLen: int=None,
-                valLen: int=None,
+                X_t: Optional[np.ndarray]=None,
+                y_t: Optional[np.ndarray]=None,
+                X_v: Optional[np.ndarray]=None,
+                y_v: Optional[np.ndarray]=None,
+                training_data: Optional[np.ndarray]=None,
+                f_out_inverse: Optional[Callable]=None,
+                initLen: Optional[int]=None, 
+                initTrainLen_ratio: Optional[float]=None,
+                trainLen: Optional[int]=None,
+                valLen: Optional[int]=None,
                 wobble_train: bool=False,
-                wobbler_train: np.ndarray=None,
+                wobbler_train: Optional[np.ndarray]=None,
                 null_state_init: bool=True,
-                custom_initState: np.ndarray=None,
-                regr=None,
+                custom_initState: Optional[np.ndarray]=None,
+                regr: Optional[Callable]=None,
                 reg_type: str="ridge",
                 ridge_param: float=1e-8,
                 solver: str="auto",
@@ -853,24 +866,22 @@ class ESN:
         """
         assert y_t is not None or training_data is not None
 
-        training_data = y_t if y_t is not None else training_data
-
         self._inSize = None
         self._outSize = None
 
         self.reg_X = None
         self._X_val = None
-        self.Wout = None
+        self._Wout = None
         self.states = None
         self.val_states = None
         self._update_rule_id_train = None
         self._update_rule_id_val = None
 
         if custom_initState is None:
-            self.reservoir_layer = np.zeros((self.resSize,1),dtype=self.dtype) if null_state_init else np.random.rand(self.resSize,1).astype(self.dtype)
+            self._reservoir_layer = np.zeros((self._resSize,1),dtype=self._dtype) if null_state_init else np.random.rand(self._resSize,1).astype(self._dtype)
         else:
-            assert custom_initState.shape == (self.resSize,1),f"Please give custom initial state with shape ({self.resSize},1)."
-            self.reservoir_layer = custom_initState
+            assert custom_initState.shape == (self._resSize,1),f"Please give custom initial state with shape ({self._resSize},1)."
+            self._reservoir_layer = custom_initState
 
         if self._mm != np.matmul:
             self._torchify()
@@ -883,19 +894,23 @@ class ESN:
                     wobble=wobble_train,
                     wobbler=wobbler_train
                     )
+
+        assert self._initLen is not None
+        if training_data is None:
+            training_data = y_t[:,self._initLen:]
         
-        self.fit(y=training_data[:,self._initLen:],
+        self.fit(y=training_data,
                     f_out_inverse=f_out_inverse,
                     regr=regr,
                     reg_type=reg_type,
                     ridge_param=ridge_param,
                     solver=solver,
                     error_measure=error_measure,
-                    verbose=kwargs.get("verbose",1)
+                    verbose=kwargs.get("verbose",self._verbose)
                     )
 
         if kwargs.get("train_only"):
-            return self._mm( self.Wout , self.reg_X)
+            return self.__call__(self.reg_X)
 
         pred = self.validate(u=X_v,
                     y=y_v,
@@ -910,10 +925,10 @@ class ESN:
         "TBD"
         pass
 
-    def update_reservoir_layer(
-        self,in_:Union[np.ndarray,torch.Tensor,NoneType]=None
-        ,out_:Union[np.ndarray,torch.Tensor,NoneType]=None
-        ,mode:Optional[str]=None) -> NoneType:
+    def update_reservoir_layer(self,
+        in_:Optional[np.ndarray | torch.Tensor]=None,
+        out_:Optional[np.ndarray | torch.Tensor]=None,
+        mode:Optional[str]=None) -> None:
         """
         - in_: input array
         - out_: output array
@@ -923,15 +938,15 @@ class ESN:
         
         self._update_rule_id_check(in_,out_,mode)
 
-        self.reservoir_layer = self._get_update(self.reservoir_layer,in_=in_,out_=out_)
+        self._reservoir_layer = self._get_update(self._reservoir_layer,in_=in_,out_=out_)
 
-        assert not self.__check_nan(self.reservoir_layer), 'NaN value encountered in reservoir layer!'
+        assert not self.__check_nan(self._reservoir_layer), 'NaN value encountered in reservoir layer!'
 
     def update_reservoir_layers_serially(self
-        , in_: Union[np.ndarray, torch.Tensor, NoneType] = None
-        , out_: Union[np.ndarray, torch.Tensor, NoneType] = None
+        , in_: Optional[np.ndarray | torch.Tensor] = None
+        , out_: Optional[np.ndarray | torch.Tensor] = None
         , mode: Optional[str] = None
-        ,init_size: int = 0) -> NoneType:
+        ,init_size: int = 0) -> None:
 
         """
         WARNING: RESETS RESERVOIR LAYERS!
@@ -952,12 +967,12 @@ class ESN:
 
         if layer_mode == 'batch':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.resSize,self.batch_size+init_size),dtype=self.dtype)))  #(resSize,batch_size)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(resSize,batch_size)
 
         # TODO: Make it work for randomly initialized non-null reservoir initial state.
         elif self._layer_mode == 'ensemble':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self.resSize,self.batch_size+init_size),dtype=self.dtype)))  #(no_of_reservoirs,resSize,batch_size)
+            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(no_of_reservoirs,resSize,batch_size)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 self.set_reservoir_layer_mode('ensemble',batch_size=1)  #(no_of_reservoirs,resSize,1)
@@ -968,7 +983,7 @@ class ESN:
             
         assert self._atleastND(in_).shape[-1] == batch_size + init_size, [in_.shape,batch_size,init_size]
 
-        res_layer_temp[...,0] = self._get_update(self.reservoir_layer,self._atleastND(in_)[...,0],out_)[...,-1]
+        res_layer_temp[...,0] = self._get_update(self._reservoir_layer,self._atleastND(in_)[...,0],out_)[...,-1]
         
         for i in range(1,self.batch_size + init_size):
             res_layer_temp[...,i] = self._get_update(res_layer_temp[...,i-1:i],self._atleastND(in_)[...,i],out_)[...,-1]
@@ -980,15 +995,17 @@ class ESN:
             warnings.simplefilter("ignore")
             self.set_reservoir_layer_mode(layer_mode,batch_size=batch_size) #(no_of_reservoirs,resSize,batch_size) or #(resSize,batch_size)
 
-        self.reservoir_layer = res_layer_temp[...,init_size:]
+        self._reservoir_layer = res_layer_temp[...,init_size:]
 
-    def reset_reservoir_layer(self) -> NoneType:
-        if self._mm == np.matmul:
-            self.reservoir_layer = self._reservoir_layer_init.copy()
+    def reset_reservoir_layer(self) -> None:
+        if self._os == 'numpy':
+            self._reservoir_layer = self._reservoir_layer_init.copy()
+        elif self._os == 'torch':
+            self._reservoir_layer = self._reservoir_layer_init.clone()
         else:
-            self.reservoir_layer = self._reservoir_layer_init.clone()
+            raise Exception('Unknown os.')
 
-    def set_reservoir_layer_mode(self,mode: str,batch_size: int=None,no_of_reservoirs :int=None):
+    def set_reservoir_layer_mode(self,mode: str,batch_size: Optional[int]=None,no_of_reservoirs : Optional[int]=None):
 
         """
         WARNING: RESETS RESERVOIR LAYERS!
@@ -1024,11 +1041,11 @@ class ESN:
         else:
             raise Exception(f"Current reservoir mode is already '{self._layer_mode}'.")
 
-    def copy_from(self,reservoir,bind=False) -> NoneType:
+    def copy_from(self,reservoir,bind=False) -> None:
         assert isinstance(reservoir,self.__class__)
         # assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
         for attr_name,attr in reservoir.__dict__.items():
-            if isinstance(attr,(int,float,NoneType,np.ufunc,np.vectorize,type(sigmoid),type(torch.tanh),type(torch.nn.functional.leaky_relu))) or bind:
+            if isinstance(attr,Optional[float | Callable]) or bind:
                 self.__setattr__(attr_name,attr)
             else:
                 if isinstance(attr,torch.Tensor):
@@ -1036,7 +1053,7 @@ class ESN:
                 else:
                     self.__setattr__(attr_name,attr.copy())
     
-    def copy_connections_from(self,reservoir,bind=False,weights_list=None) -> NoneType:
+    def copy_connections_from(self,reservoir,bind=False,weights_list: Optional[list[str]]=None) -> None:
         assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
 
         if weights_list is None:
@@ -1046,7 +1063,7 @@ class ESN:
 
         for attr_name,attr in reservoir.__dict__.items():
             if weights_list.count(attr_name):
-                if isinstance(attr,NoneType) or bind:
+                if attr is None or bind:
                     self.__setattr__(attr_name,attr)
                 else:
                     if reservoir._mm == np.matmul:
@@ -1054,10 +1071,10 @@ class ESN:
                     else:
                         self.__setattr__(attr_name,self._tensor(attr.clone()))
 
-    def make_connection(self,w_name:str,inplace:bool=False,verbose:bool=True,**kwargs) -> Union[np.ndarray,torch.tensor,NoneType]:
+    def make_connection(self,w_name:str,inplace:bool=False,**kwargs) -> Optional[np.ndarray | torch.Tensor]:
         w = self.__generate_weight(w_name=w_name,size=kwargs.get('size'))
 
-        if verbose:
+        if kwargs.get('verbose',self._verbose):
             weight_message(w_name,{False:'generated',True:'got replaced'}[inplace])
 
         if inplace:
@@ -1065,23 +1082,23 @@ class ESN:
         else:
             return w
     
-    def delete_connection(self,w_name:str,verbose:bool=True) -> NoneType:
+    def delete_connection(self,w_name:str,**kwargs) -> None:
         
         self.__setattr__(w_name,None)
         self.__setattr__(size_dict[w_name],None)
 
-        if verbose:
+        if kwargs.get('verbose',self._verbose):
             print(f'{weight_dict[w_name].capitalize()} got deleted.')
 
-    def cpu(self) -> NoneType:
-        self.device = 'cpu'
+    def cpu(self) -> None:
+        self._device = 'cpu'
         for val in self.__dict__.values():
             if hasattr(val,'cpu'):
                 val = val.cpu()
             elif hasattr(val,'to'):
                 val = self._send_tensor_to_device(val)
     
-    def save(self,save_path:str) -> NoneType:
+    def save(self,save_path:str) -> None:
         """
         Save path example: ./saved_reservoir.pkl
         """
@@ -1093,7 +1110,7 @@ class ESN:
         save_loc = "/".join(save_path.split("/")[:-1]) + "/"
         print(f"{save_file_name} saved to {save_loc}.")
     
-    def load(self,load_path:str) -> NoneType:
+    def load(self,load_path:str) -> None:
         """
         Load path example: ./saved_reservoir.pkl
         """
@@ -1104,54 +1121,127 @@ class ESN:
             self.__setattr__(attr_name,attr)
         print(f"Model loaded from {load_path}.")
 
-    def _get_spectral_radius(self):
-        if self._os == 'numpy':
-            return abs(np.linalg.eigvals(self.W)).max().real #abs(linalg.eig(self.W)[0]).max()
-        elif self._os == 'torch':
-            return torch.linalg.eigvals(self.W.cpu()).abs().max().item()
+    def mute(self,verbose:Optional[bool]=None):
+        assert isinstance(verbose,Optional[bool]) 
+        if verbose is None:
+            self._verbose = not self._verbose
         else:
-            raise Exception("Unknown os type.")
+            self._verbose = not verbose
 
-    def _get_spectral_norm(self):
-        if self._os == 'numpy':
-            return np.linalg.svd(self.W,compute_uv=False).max()
-        elif self._os == 'torch':
-            return torch.linalg.svdvals(self.W.cpu()).max().item()
+    def forward(self,in_:Optional[np.ndarray | torch.Tensor]=None,out_:Optional[np.ndarray | torch.Tensor]=None) -> np.ndarray | torch.Tensor:
+        self.update_reservoir_layer(in_,out_)
+        return self.__call__(self._pack_internal_state(in_,out_))
+
+    def __call__(self, x:np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
+        return self._f_out(self._mm(self._Wout,x))
+
+    def _set(self,prop:str,val:float | Callable | bool,**kwargs) -> None:
+
+        verbose = kwargs.get('verbose',self._verbose)
+
+        # prop = prop.lower()
+        assert prop in self._settable, f'{prop} is not settable.'
+        _prop = self._settable[prop]['name']
+        
+        hasattribute = hasattr(self,_prop)
+        # Setting the attribute for the first time in __init__.
+        if not hasattribute:
+            warn = False
+        # Setting the attribute NOT the first time. warn is True if attempting to change the attribute from a not None value.
         else:
-            raise Exception("Unknown os type.")
+            old_val = getattr(self,_prop)
+            warn = False if old_val is None else True
+            assert prop not in self.__change_unsupported or warn is False, f'Changing {prop} is not supported.'
+
+
+        if prop == 'f' or prop == 'f_out':
+            val = self._fn_interpreter(val)
+        elif prop == 'leak_rate':
+            assert 0<=val<=1, 'Leak rate must lie in the interval [0,1].'
+        elif prop == 'leak_version':
+            assert [0,1].count(val), 'Leak version must be 0 or 1.'
+        elif prop == 'bias':
+            if warn is False:
+                assert not hasattribute or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
+
+
+        assert val is not None or warn is False, f'{prop} cannot be set to None.'
+
+        if prop == 'spectral_radius':
+            if val is not None:
+                self.scale_reservoir_weights(desired_scaling=val,reference='ev')
+        elif prop == 'spectral_norm':
+            if val is not None:
+                self.scale_reservoir_weights(desired_scaling=val,reference='sv')
+        elif prop in weight_dict:
+            size_str = size_dict[prop]
+            size_ = None
+
+            if val is not None:
+                assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self._os])
+                assert val.dtype == self._dtype, f"Data type of the {weight_dict[prop]} connection matrix provided by the user does not match the reservoir's data type: {self._dtype} vs. {val.dtype}.\
+                                                                    To change reservoir's data type use keyword argument 'dtype' during initialization."
+
+                size_ = val.shape[1] if prop != 'Wout' else val.shape[0]
+                if prop == 'Win':
+                    size_ -= self.__bias
+
+                self.__setattr__(_prop,self._get_clone(val))
+            try:
+                self.__setattr__(size_str,size_)
+                self.__check_connections()
+            except AssertionError as asserr:
+                print(asserr,'Assignment unsuccessful.')
+                size_ = old_val.shape[1] if prop != 'Wout' else old_val.shape[0]
+                self.__setattr__(size_str,size_)
+                self.__setattr__(_prop,old_val)
+        else:
+            self.__setattr__(_prop,val)
+            if self._verbose:
+                if warn:
+                    warnings.warn(f"You have already been using {old_val} as {prop}. It has been changed to {val}.")
+                elif verbose:
+                    if val is not None:
+                        print(f'{prop} has been set to {val}.')
+
+        if prop == 'bias':
+            if self._verbose and self._bias == 0:
+                warnings.warn("You have set the bias to zero.")
+            self.__bias = False if self._bias is None else True
+            self._make_bias_vec()
 
     def _get_update(self
-                    ,x,in_:Union[np.ndarray,torch.tensor,NoneType]=None
-                    ,out_:Union[np.ndarray,torch.tensor,NoneType]=None
+                    ,x,in_:Optional[np.ndarray | torch.Tensor]=None
+                    ,out_:Optional[np.ndarray | torch.Tensor]=None
                     ):
 
         if self._os == 'torch':
-            assert isinstance(in_,(torch.Tensor,NoneType)) and isinstance(out_,(torch.Tensor,NoneType)), 'Please give pytorch tensors.'
+            assert isinstance(in_,Optional[torch.Tensor]) and isinstance(out_,Optional[torch.Tensor]), 'Please give pytorch tensors.'
 
-        assert self.W.shape[-1]==x.shape[-2], [self.W.shape,x.shape]
-        resPart = self._f(self._mm( self.W, x ))
+        assert self._W.shape[-1]==x.shape[-2], [self._W.shape,x.shape]
+        resPart = self._f(self._mm( self._W, x ))
         inPart = 0
         outPart = 0
 
         if in_ is not None:
-            assert self._get_tensor_device(in_) == self.device, (self.device,in_)
-            if self.Win is None:
+            assert self._get_tensor_device(in_) == self._device, (self._device,in_)
+            if self._Win is None:
                 self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
-            assert self.Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self.Win.shape,in_.shape]
+            assert self._Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self._Win.shape,in_.shape]
             if self.__bias:
-                inPart = self._mm(self.Win, self._vstack((self._bias_vec,self._atleastND(in_))))
+                inPart = self._mm(self._Win, self._vstack((self._bias_vec,self._atleastND(in_))))
             else:
-                inPart = self._mm(self.Win, self._atleastND(in_))
+                inPart = self._mm(self._Win, self._atleastND(in_))
 
         if out_ is not None:
-            if self.Wback is None:
+            if self._Wback is None:
                 self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
 
-            assert self._get_tensor_device(out_) == self.device, (self.device,out_)
+            assert self._get_tensor_device(out_) == self._device, (self._device,out_)
             
-            assert self.Wback.shape[1]==self._atleastND(out_).shape[0]
+            assert self._Wback.shape[1]==self._atleastND(out_).shape[0]
 
-            outPart = self._mm(self.Wback, self._atleastND(out_))
+            outPart = self._mm(self._Wback, self._atleastND(out_))
 
 
         if self._leak_version == 1:
@@ -1163,7 +1253,7 @@ class ESN:
             raise Exception('Unknown leak version.')
         
         return (1-self._leak_rate)*x + fullPart
-    
+
     def _make_bias_vec(self):
         # assert self._bias != 0,'Bias equal to zero is forbidden.'
 
@@ -1171,11 +1261,11 @@ class ESN:
             self._bias_vec = None
         else:
             if self._layer_mode == 'single':
-                self._bias_vec  = np.ones((1,1),dtype=self.dtype)*self._bias
+                self._bias_vec  = np.ones((1,1),dtype=self._dtype)*self._bias
             elif self._layer_mode == 'batch':
-                self._bias_vec  = np.ones((1,self.batch_size),dtype=self.dtype)*self._bias
+                self._bias_vec  = np.ones((1,self.batch_size),dtype=self._dtype)*self._bias
             elif self._layer_mode == 'ensemble':
-                self._bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size),dtype=self.dtype)*self._bias
+                self._bias_vec  = np.ones((self.no_of_reservoirs,1,self.batch_size),dtype=self._dtype)*self._bias
             else:
                 raise Exception(f"Unknown layer mode: {self._layer_mode}.")
             
@@ -1188,16 +1278,16 @@ class ESN:
         """
         core_nodes = self._core_nodes.copy()
         if self._layer_mode == 'single':
-            self.reservoir_layer  = core_nodes
+            self._reservoir_layer  = core_nodes
         elif self._layer_mode == 'batch':
-            self.reservoir_layer  = np.hstack(self.batch_size*[core_nodes])
+            self._reservoir_layer  = np.hstack(self.batch_size*[core_nodes])
         elif self._layer_mode == 'ensemble':
-            self.reservoir_layer  = np.stack(self.no_of_reservoirs*[np.hstack(self.batch_size*[core_nodes])])
+            self._reservoir_layer  = np.stack(self.no_of_reservoirs*[np.hstack(self.batch_size*[core_nodes])])
         else:
             raise Exception(f"Unknown layer mode: {self._layer_mode}.")
 
-        self.reservoir_layer = self._send_tensor_to_device(self._tensor(self.reservoir_layer))
-        self._reservoir_layer_init = self._get_clone(self.reservoir_layer)
+        self._reservoir_layer = self._send_tensor_to_device(self._tensor(self._reservoir_layer))
+        self._reservoir_layer_init = self._get_clone(self._reservoir_layer)
 
     def _collapse_reservoir_layers(self):
 
@@ -1206,7 +1296,7 @@ class ESN:
         """
 
         if self._layer_mode == 'single':
-            raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be collapsed further in dimension.')
+            raise Exception(f'Your reservoir layer has shape {self._reservoir_layer.shape}, which cannot be collapsed further in dimension.')
 
         if self._layer_mode == 'batch':
             self._layer_mode = 'single'
@@ -1229,7 +1319,7 @@ class ESN:
         """
 
         if self._layer_mode == 'ensemble':
-            raise Exception(f'Your reservoir layer has shape {self.reservoir_layer.shape}, which cannot be expanded further in dimension.')
+            raise Exception(f'Your reservoir layer has shape {self._reservoir_layer.shape}, which cannot be expanded further in dimension.')
 
         if self._layer_mode == 'single':
             self._layer_mode = 'batch'
@@ -1252,7 +1342,7 @@ class ESN:
         in_ = self._atleastND(in_)
         out_ = self._atleastND(out_)
 
-        result = self.reservoir_layer.copy()
+        result = self._reservoir_layer.copy()
 
         if out_ is not None:
             result = self._vstack((out_,result))
@@ -1265,25 +1355,25 @@ class ESN:
 
         # no u, no y
         if in_ is None and out_ is None:
-            return self._cat((self._bias_vec,self.reservoir_layer)).ravel()
+            return self._cat((self._bias_vec,self._reservoir_layer)).ravel()
 
         # no u, yes y
         elif in_ is None and out_ is not None:
-            return self._cat((self._bias_vec,out_,self.reservoir_layer)).ravel()
+            return self._cat((self._bias_vec,out_,self._reservoir_layer)).ravel()
 
         # yes u, no y
         elif in_ is not None and out_ is None:
-            return self._cat((self._bias_vec,in_,self.reservoir_layer)).ravel()
+            return self._cat((self._bias_vec,in_,self._reservoir_layer)).ravel()
 
         # yes u, yes y
         elif in_ is not None and out_ is not None:
-            return self._cat((self._bias_vec,in_,out_,self.reservoir_layer)).ravel()
+            return self._cat((self._bias_vec,in_,out_,self._reservoir_layer)).ravel()
     
     def _get_update_rule_id(self,in_=None,out_=None):
         return min(3,((in_ is not None) + 1)*((in_ is not None)+(out_ is not None)))
     
     def _update_rule_id_check(self,in_,out_,mode):
-        #assert len(self.reservoir_layer.shape)>1 and self.reservoir_layer.shape[1]==1,self.reservoir_layer.shape
+        #assert len(self._reservoir_layer.shape)>1 and self._reservoir_layer.shape[1]==1,self._reservoir_layer.shape
 
         if mode == "train":
             update_rule_id = self._get_update_rule_id(in_,out_)
@@ -1313,13 +1403,16 @@ class ESN:
                 neg_slope = float(f.split('_')[-1])
                 return leaky_relu(neg_slope) if self._os == 'numpy' else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
             elif f.lower()=="softmax":
-                return softmax if self._os == 'numpy' else lambda x: torch.softmax(x,0,dtype=self.reservoir_layer.dtype)
+                return softmax if self._os == 'numpy' else lambda x: torch.softmax(x,0,dtype=self._reservoir_layer.dtype)
             elif f.lower()=="id":
                 return Id
             else:
                 raise Exception("The specified activation function is not a registered one.")
         else:
-            self.__f_out_name = 'custom'
+            if f is None:
+                return self._fn_interpreter('id')
+            else:
+                self.__f_out_name = 'custom'
             return f
 
     def _vstack(self,x,*args,**kwargs):
@@ -1346,10 +1439,10 @@ class ESN:
         else:
             return torch.column_stack(x,*args,**kwargs )
 
-    def _tensor(self,x):
-        assert x.dtype == self.dtype or str(x.dtype).split('.')[-1] == self.dtype
+    def _tensor(self,x) -> Optional[np.ndarray | torch.Tensor]:
+        assert x.dtype == self._dtype or str(x.dtype).split('.')[-1] == self._dtype
         if self._os == 'numpy':
-            if isinstance(x,(np.ndarray,NoneType)):
+            if isinstance(x,Optional[np.ndarray]):
                 return x
             elif isinstance(x,list):
                 return np.array(x)
@@ -1358,7 +1451,7 @@ class ESN:
             else:
                 raise NotImplementedError
         else:
-            if isinstance(x,(torch.Tensor,NoneType)):
+            if isinstance(x,Optional[torch.Tensor]):
                 return x
             elif isinstance(x,list):
                 return torch.tensor(x)
@@ -1367,7 +1460,7 @@ class ESN:
             else:
                 raise NotImplementedError
 
-    def _get_clone(self,x):
+    def _get_clone(self,x) -> np.ndarray | torch.Tensor:
         if self._os == 'numpy':
             return x.copy()
         else:
@@ -1382,12 +1475,12 @@ class ESN:
         for W_str in ['Wout','W','Win','Wback']:
             W_ = self.__getattribute__(W_str)
             if W_ is not None:
-                self.__setattr__(W_str,self._tensor(W_).to(self.device))
+                self.__setattr__(W_str,self._tensor(W_).to(self._device))
 
             if self._bias_vec is not None:
-                self._bias_vec = self._tensor(self._bias_vec).to(self.device)
-            self.reservoir_layer = self._tensor(self.reservoir_layer).to(self.device)
-            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(self.device)
+                self._bias_vec = self._tensor(self._bias_vec).to(self._device)
+            self._reservoir_layer = self._tensor(self._reservoir_layer).to(self._device)
+            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(self._device)
             self._vstack = torch.vstack
             self._hstack = torch.hstack
             self._cat = torch.cat
@@ -1405,75 +1498,67 @@ class ESN:
 
     def _send_tensor_to_device(self,x):
         if hasattr(x,'to'):
-            return x.to(self.device)
+            return x.to(self._device)
         else:
             return x
 
-    def __call__(self, in_):
-
-        assert self._get_tensor_device(in_) == self.device, (self.device,in_)
-
-        if self._update_rule_id_train is None:
-            self._update_rule_id_train = 2
+    def __spectral_radius(self):
+        if self._os == 'numpy':
+            return abs(np.linalg.eigvals(self._W)).max().real #abs(linalg.eig(self._W)[0]).max()
+        elif self._os == 'torch':
+            return torch.linalg.eigvals(self._W.cpu()).abs().max().item()
         else:
-            assert self._update_rule_id_train==2
+            raise Exception("Unknown os type.")
 
-        if self.__bias:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2),self._atleastND(self._bias_vec).transpose(-1,-2))).transpose(-1,-2)
+    def __spectral_norm(self):
+        if self._os == 'numpy':
+            return np.linalg.svd(self._W,compute_uv=False).max()
+        elif self._os == 'torch':
+            return torch.linalg.svdvals(self._W.cpu()).max().item()
         else:
-            self._U = self._hstack((self._atleastND(in_).transpose(-1,-2),self.reservoir_layer.transpose(-1,-2))).transpose(-1,-2)
-        return self._mm(self.Wout,self._U)
+            raise Exception("Unknown os type.")
 
     def __generate_weight(self,w_name,size):
-        try:
-            size_str = {'Win':'_inSize','W':'resSize','Wback':'_outSize'}[w_name]
-        except KeyError:
-            if w_name in weight_dict:        
-                raise NotImplementedError(f'Generation of {w_name} is not supported at the moment.')
-            else:
-                raise Exception(f"{w_name} is not a valid weight name. Valid names are {', '.join(weight_dict.keys())}.")
-
-        self_size = getattr(self,size_str)
-
-        if self_size is None:
-            self.__setattr__(size_str,size)
-        elif size is None:
-            assert self_size is not None
+        supported = ['Win','W','Wback']
+        if w_name in supported:
+            size_str = size_dict[w_name]
+        elif w_name in weight_dict:
+            raise NotImplementedError(f'Generation of {w_name} is not supported at the moment.')
         else:
-            assert self_size == size, f'Reservoir has {weight_dict[w_name]} size={self_size} but you have given {weight_dict[w_name]} size={size}.'
-        
-        _size = getattr(self,size_str)
+            raise Exception(f"{w_name} is not a valid weight name. Valid names are {', '.join(weight_dict.keys())}.")
+
+        if size is None:
+            size = getattr(self,size_str)
+            assert size is not None
 
         if w_name == 'Win':
-            assert _size is not None, 'Please provide input size of the reservoir.'
-            w = np.random.rand(self.resSize,self.__bias+_size) - 0.5
-            # Win = np.random.uniform(size=(self.resSize,inSize+bias))<0.5
-            # self.Win = np.where(Win==0, -1, Win)
+            w = np.random.rand(self._resSize,self.__bias+size) - 0.5
+            # Win = np.random.uniform(size=(self._resSize,inSize+bias))<0.5
+            # self._Win = np.where(Win==0, -1, Win)
         elif w_name == 'W':
-            w = np.random.choice(self.__xn, p=self.__pn,size=(self.resSize,self.resSize))
+            w = np.random.choice(self.__xn, p=self.__pn,size=(size,size))
         elif w_name == 'Wback':
-            assert _size is not None, 'Please provide output size of the reservoir.'
-            w = np.random.uniform(-2,2,size=(self.resSize,_size))
+            w = np.random.uniform(-2,2,size=(self._resSize,size))
 
-        return self._send_tensor_to_device(self._tensor(w.astype(self.dtype)))
+        return self._send_tensor_to_device(self._tensor(w.astype(self._dtype)))
 
     def __check_connections(self):
-        assert self.W.shape[0] == self.W.shape[1], f'Reservoir matrix has to be square matrix: {self.W.shape[0]} != {self.W.shape[1]}'
-        assert self.W.shape[1] == self.resSize, f'Mismatched reservoir size and reservoir weights: {self.W.shape[1]} != {self.resSize}'
-        if self.Win is not None:
-            assert self.Win.shape[0] == self.W.shape[0], f'Input matrix has shape, which is inconsistent with the reservoir matrix: {self.Win.shape[0]} != {self.W.shape[0]}'
-            assert self.Win.shape[0] == self.resSize, f'Mismatched reservoir size and input weights: {self.Win.shape[0]} != {self.resSize}'
-            assert self.Win.shape[1] == self._inSize + self.__bias, f'Mismatched input size and input weights: {self.Win.shape[1]} != {self._inSize + self.__bias}'
-            if self.Wout is not None:
-                assert self.Wout.shape[1] ==self.W.shape[0] + self.Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self.Wout.shape[1]} != {self.W.shape[0] + self.Win.shape[1]}'
-                assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
-        if self.Wback is not None:
-            assert self.Wback.shape[0] == self.W.shape[0],f'Feedback matrix has shape, which is inconsistent with the reservoir matrix: {self.Wback.shape[0]} != {self.W.shape[0]}'
-            assert self.Wback.shape[0] == self.resSize, f'Mismatched reservoir size and feedback weights: {self.Wback.shape[0]} != {self.resSize}'
-            assert self.Wback.shape[1] == self._outSize, f'Mismatched output size and feedback weights: {self.Wback.shape[1]} != {self._outSize}'
-            if self.Wout is not None:
-                assert self.Wout.shape[0] == self.Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self.Wout.shape[0]} != {self.Wback.shape[1]}'
-                assert self.Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self.Wout.shape[0]} != {self._outSize}'
+        assert self._W.shape[0] == self._W.shape[1], f'Reservoir matrix has to be square matrix: {self._W.shape[0]} != {self._W.shape[1]}.'
+        assert self._W.shape[1] == self._resSize, f'Mismatched reservoir size and reservoir weights: {self._W.shape[1]} != {self._resSize}.'
+        if self._Win is not None:
+            assert self._Win.shape[0] == self._W.shape[0], f'Input matrix has shape, which is inconsistent with the reservoir matrix: {self._Win.shape[0]} != {self._W.shape[0]}.'
+            assert self._Win.shape[0] == self._resSize, f'Mismatched reservoir size and input weights: {self._Win.shape[0]} != {self._resSize}.'
+            assert self._Win.shape[1] == self._inSize + self.__bias, f'Mismatched input size and input weights: {self._Win.shape[1]} != {self._inSize + self.__bias}.'
+            if self._Wout is not None:
+                assert self._Wout.shape[1] ==self._W.shape[0] + self._Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self._Wout.shape[1]} != {self._W.shape[0] + self._Win.shape[1]}.'
+                assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
+        if self._Wback is not None:
+            assert self._Wback.shape[0] == self._W.shape[0],f'Feedback matrix has shape, which is inconsistent with the reservoir matrix: {self._Wback.shape[0]} != {self._W.shape[0]}.'
+            assert self._Wback.shape[0] == self._resSize, f'Mismatched reservoir size and feedback weights: {self._Wback.shape[0]} != {self._resSize}.'
+            assert self._Wback.shape[1] == self._outSize, f'Mismatched output size and feedback weights: {self._Wback.shape[1]} != {self._outSize}.'
+            if self._Wout is not None:
+                assert self._Wout.shape[0] == self._Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self._Wout.shape[0]} != {self._Wback.shape[1]}.'
+                assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
     
     def __check_nan(self,x):
         if self._os == 'numpy':
@@ -1490,6 +1575,9 @@ class ESNX(ESN):
 
     ESN for multitasking such as when using (mini)batches.
     """
+
+    __name = 'ESNX'
+
     def __init__(self, 
                 batch_size: int,
                 resSize: int = 450, 
@@ -1499,8 +1587,6 @@ class ESNX(ESN):
                 null_state_init: bool = True,
                 custom_initState: np.ndarray = None,
                 **kwargs):
-        
-        self.__name = 'ESNX'
 
         super().__init__(resSize=resSize, 
                         xn=xn, 
@@ -1519,7 +1605,7 @@ class ESNX(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
 
 
@@ -1531,6 +1617,9 @@ class ESNS(ESN):
     Ensemble of ESNs for training with multiple environments using (mini)batches.
     Shape: (#Reservoirs, Vector Length, Batch Size)
     """
+    
+    __name = 'ESNS'
+
     def __init__(self, 
                 no_of_reservoirs: int,
                 batch_size: int,
@@ -1542,7 +1631,6 @@ class ESNS(ESN):
                 custom_initState: np.ndarray = None,
                 **kwargs):
 
-        self.__name = 'ESNS'
 
         super().__init__(resSize=resSize, 
                         xn=xn, 
@@ -1565,7 +1653,7 @@ class ESNS(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
 
 
@@ -1581,6 +1669,10 @@ class ESNN(ESN,torch.nn.Module):
 
     """
 
+
+    __name = 'ESNN'
+
+
     def __init__(self,
                 batch_size: int,
                 in_size: int,
@@ -1593,8 +1685,6 @@ class ESNN(ESN,torch.nn.Module):
                 null_state_init: bool = True,
                 custom_initState: np.ndarray = None,
                 **kwargs):
-
-        self.__name = 'ESNN'
 
         super().__init__(
                     resSize=resSize, 
@@ -1618,7 +1708,7 @@ class ESNN(ESN,torch.nn.Module):
         else:
             self.set_reservoir_layer_mode('batch')
 
-        self.Wout = torch.nn.Linear(in_size+self.resSize+(self._bias is not None), out_size,bias=False,device=self.device,dtype=self.reservoir_layer.dtype)
+        self._Wout = torch.nn.Linear(in_size+self._resSize+(self._bias is not None), out_size,bias=False,device=self._device,dtype=self._reservoir_layer.dtype)
 
         self._inSize = in_size
         self._outSize = out_size
@@ -1640,7 +1730,7 @@ class ESNN(ESN,torch.nn.Module):
         WARNING: DOES NOT UPDATE RESERVOIR LAYER(S)!
         """
 
-        assert self._get_tensor_device(in_) == self.device, (self.device,in_)
+        assert self._get_tensor_device(in_) == self._device, (self._device,in_)
 
         # if self._update_rule_id_train is None:
         #     self._update_rule_id_train = 2
@@ -1649,14 +1739,14 @@ class ESNN(ESN,torch.nn.Module):
 
 
         if self.__bias:
-            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer,self._atleastND(self._bias_vec)))
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self._reservoir_layer,self._atleastND(self._bias_vec)))
         else:
-            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self.reservoir_layer))
+            self._U = self._vstack((self._atleastND(in_)[...,init_size:],self._reservoir_layer))
 
-        return self._mm(self.Wout,self._U.transpose(-2,-1))
+        return self._mm(self._Wout,self._U.transpose(-2,-1))
 
     
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: Union[int, float] = None, f: Union[str, Callable] = None, leak_rate: Union[int, float] = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> NoneType:
+    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
