@@ -395,7 +395,7 @@ ESN.copy_from
 
 Copies the reservoir properties to the current reservoir.
 
-    .. method:: copy_from(reservoir,bind=False) -> None
+    .. method:: copy_from(reservoir:Self,bind:bool=False) -> None
 
     **Parameters**
 
@@ -409,7 +409,7 @@ ESN.copy_connections_from
 
 Similar to `ESN.copy_from`_ but copies only the connection matrices.
 
-    .. method:: copy_connections_from(reservoir,bind=False,weights_list: Optional[list[str]]=None) -> None
+    .. method:: copy_connections_from(reservoir:Self,bind:bool=False,weights_list: Optional[list[str]]=None) -> None
 
     **Parameters**
 

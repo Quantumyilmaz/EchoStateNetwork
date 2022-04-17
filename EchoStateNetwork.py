@@ -4,7 +4,6 @@
 
 # Documentation: https://echostatenetwork.readthedocs.io/
 
-
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
@@ -921,9 +920,7 @@ class ESN:
         
         return pred
 
-    def test(self):
-        "TBD"
-        pass
+    def test(self):...
 
     def update_reservoir_layer(self,
         in_:Optional[np.ndarray | torch.Tensor]=None,
@@ -1041,7 +1038,7 @@ class ESN:
         else:
             raise Exception(f"Current reservoir mode is already '{self._layer_mode}'.")
 
-    def copy_from(self,reservoir,bind=False) -> None:
+    def copy_from(self,reservoir,bind:bool=False) -> None:
         assert isinstance(reservoir,self.__class__)
         # assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
         for attr_name,attr in reservoir.__dict__.items():
@@ -1053,7 +1050,7 @@ class ESN:
                 else:
                     self.__setattr__(attr_name,attr.copy())
     
-    def copy_connections_from(self,reservoir,bind=False,weights_list: Optional[list[str]]=None) -> None:
+    def copy_connections_from(self,reservoir,bind:bool=False,weights_list: Optional[list[str]]=None) -> None:
         assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
 
         if weights_list is None:
@@ -1144,8 +1141,8 @@ class ESN:
         _prop = self._settable[prop]['name']
         
         hasattribute = hasattr(self,_prop)
-        # Setting the attribute for the first time in __init__.
-        if not hasattribute:
+        # Setting the attribute for the first time in __init__ or brute force setting.
+        if not hasattribute or self.__bypass_rules:
             warn = False
         # Setting the attribute NOT the first time. warn is True if attempting to change the attribute from a not None value.
         else:
