@@ -1059,27 +1059,22 @@ class ESN:
 
         self.__bypass_rules = False
         self.__check_connections()
-
-        if verbose:
-            print('Reservoir has been successfully copied.')
     
-    def copy_connections_from(self,reservoir,bind:bool=False,weights_list: Optional[list[str]]=None) -> None:
+    def copy_connections_from(self,reservoir,bind:bool=False,weights_list: Optional[list[str]]=None,**kwargs) -> None:
         assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
+
+        verbose = kwargs.get('verbose',True)
 
         if weights_list is None:
             weights_list = ['Wout','W','Win','Wback']
         else:
             assert isinstance(weights_list,(list,tuple))
 
-        for attr_name,attr in reservoir.__dict__.items():
-            if weights_list.count(attr_name):
-                if attr is None or bind:
-                    self.__setattr__(attr_name,attr)
-                else:
-                    if reservoir._mm == np.matmul:
-                        self.__setattr__(attr_name,self._tensor(attr.copy()))
-                    else:
-                        self.__setattr__(attr_name,self._tensor(attr.clone()))
+        for w in weights_list:
+            other_w = getattr(reservoir,w)
+            if other_w is not None:
+                other_w = other_w if bind else self._get_clone(other_w)
+            self._set(w, other_w,verbose=verbose)
 
     def make_connection(self,w_name:str,inplace:bool=False,**kwargs) -> Optional[np.ndarray | torch.Tensor]:
         w = self.__generate_weight(w_name=w_name,size=kwargs.get('size'))

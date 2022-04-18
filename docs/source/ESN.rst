@@ -412,13 +412,17 @@ ESN.copy_connections_from
 
 Similar to `ESN.copy_from`_ but copies only the connection matrices.
 
-    .. method:: copy_connections_from(reservoir:Self,bind:bool=False,weights_list: Optional[list[str]]=None) -> None
+    .. method:: copy_connections_from(reservoir:Self,bind:bool=False,weights_list: Optional[list[str]]=None,**kwargs) -> None
 
     **Parameters**
 
         :``reservoir``: Reservoir to copy from.
         :``bind``: Shares the same memory with the reservoir that is copied from.
         :``weights_list``: Give a sublist of the list ``['Wout','W','Win','Wback']`` if you do not want to copy all the connections.
+
+    **Keyword Arguments**
+            
+        :``verbose``: Give ``False`` to mute the messages.
 
 -------------------
 ESN.make_connection
