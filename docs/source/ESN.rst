@@ -395,13 +395,16 @@ ESN.copy_from
 
 Copies the reservoir properties to the current reservoir.
 
-    .. method:: copy_from(reservoir:Self,bind:bool=False) -> None
+    .. method:: copy_from(reservoir:Self,bind:bool=False,**kwargs) -> None
 
     **Parameters**
 
         :``reservoir``: Reservoir to copy from.
-        :``bind``: Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir will affect the other. \
-                    By default the properties from the reservoir that is copied from will be written to separate memory.
+        :``bind``: Shares the same memory with the reservoir that is copied from.
+    
+    **Keyword Arguments**
+            
+        :``verbose``: Give ``False`` to mute the messages.
 
 -------------------------
 ESN.copy_connections_from
@@ -414,8 +417,7 @@ Similar to `ESN.copy_from`_ but copies only the connection matrices.
     **Parameters**
 
         :``reservoir``: Reservoir to copy from.
-        :``bind``: Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir's connection matrices will affect the other's. \
-                    By default the connection matrices from the reservoir that is copied from will be written to separate memory.
+        :``bind``: Shares the same memory with the reservoir that is copied from.
         :``weights_list``: Give a sublist of the list ``['Wout','W','Win','Wback']`` if you do not want to copy all the connections.
 
 -------------------

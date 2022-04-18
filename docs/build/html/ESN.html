@@ -592,7 +592,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <blockquote>
 <div><dl class="py method">
 <dt id="copy_from">
-<code class="sig-name descname">copy_from</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">reservoir</span><span class="p">:</span> <span class="n">Self</span></em>, <em class="sig-param"><span class="n">bind</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">False</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#copy_from" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">copy_from</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">reservoir</span><span class="p">:</span> <span class="n">Self</span></em>, <em class="sig-param"><span class="n">bind</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">False</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#copy_from" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <p><strong>Parameters</strong></p>
@@ -602,7 +602,15 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <dd class="field-odd"><p>Reservoir to copy from.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">bind</span></code></dt>
-<dd class="field-even"><p>Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir will affect the other. By default the properties from the reservoir that is copied from will be written to separate memory.</p>
+<dd class="field-even"><p>Shares the same memory with the reservoir that is copied from.</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><strong>Keyword Arguments</strong></p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">verbose</span></code></dt>
+<dd class="field-odd"><p>Give <code class="docutils literal notranslate"><span class="pre">False</span></code> to mute the messages.</p>
 </dd>
 </dl>
 </div></blockquote>
@@ -624,7 +632,7 @@ Changes the shape of the reservoir layer, which can be obtained from <code class
 <dd class="field-odd"><p>Reservoir to copy from.</p>
 </dd>
 <dt class="field-even"><code class="docutils literal notranslate"><span class="pre">bind</span></code></dt>
-<dd class="field-even"><p>Shares the memory with the reservoir that is copied from, i.e. changes to one reservoir’s connection matrices will affect the other’s. By default the connection matrices from the reservoir that is copied from will be written to separate memory.</p>
+<dd class="field-even"><p>Shares the same memory with the reservoir that is copied from.</p>
 </dd>
 <dt class="field-odd"><code class="docutils literal notranslate"><span class="pre">weights_list</span></code></dt>
 <dd class="field-odd"><p>Give a sublist of the list <code class="docutils literal notranslate"><span class="pre">['Wout','W','Win','Wback']</span></code> if you do not want to copy all the connections.</p>

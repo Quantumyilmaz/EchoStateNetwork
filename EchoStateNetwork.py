@@ -4,6 +4,9 @@
 
 # Documentation: https://echostatenetwork.readthedocs.io/
 
+from tabnanny import verbose
+from tkinter.messagebox import NO
+from attr import has
 import numpy as np
 from sklearn.linear_model import Ridge,LinearRegression
 import warnings
@@ -87,7 +90,7 @@ settables = {'dtype':
 
 def esnpropertyget(fname):
     def get(esn):
-        return getattr(esn,esn._settable[fname]['name'])
+        return getattr(esn,esn._properties[fname]['name'])
     return get
 def esnpropertyset(fname):
     def set(esn,val):
@@ -147,14 +150,6 @@ def is_normal(x):
     #     return wrapper
 
 class ESN:
-
-    _settable = settables
-    __stt = np.ndarray | torch.Tensor #SupportedTensorTypes
-    __stt_str = 'numpy array or pytorch tensor' #SupportedTensorTypes
-    __change_unsupported = ['dtype','device','resSize','reservoir_layer','W']
-    __os_type_dict = {'numpy':np.ndarray,'torch':torch.Tensor}
-
-
     
     states = None
     val_states = None
@@ -175,8 +170,16 @@ class ESN:
     _update_rule_id_val = None
     _X_val = None
 
+    _properties = settables
+
     __bias = None
     __name = 'ESN'
+    __bypass_rules = False
+
+    __stt = np.ndarray | torch.Tensor #SupportedTensorTypes
+    __stt_str = 'numpy array or pytorch tensor' #SupportedTensorTypes
+    __change_unsupported = ['dtype','device','resSize']
+    __os_type_dict = {'numpy':np.ndarray,'torch':torch.Tensor}
 
     @esnproperty
     def dtype(self):pass
@@ -324,12 +327,12 @@ class ESN:
         self._mm = np.matmul if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self._layer_mode = 'single' #batch, ensemble
         self._atleastND = at_least_2d
-        self.__xn = xn if xn is not None else [0,0.4,-0.4]
-        self.__pn = pn if pn is not None else [0.9875, 0.00625, 0.00625]
+        self._xn = xn if xn is not None else [0,0.4,-0.4]
+        self._pn = pn if pn is not None else [0.9875, 0.00625, 0.00625]
 
         
-        __init__set = [to_be_set for to_be_set in self._settable if not to_be_set in ['W','resSize','dtype']]
-        self._dtype = kwargs.get('dtype',self._settable['dtype']['default'])
+        __init__set = [to_be_set for to_be_set in self._properties if not to_be_set in ['W','resSize','dtype','spectral_radius','spectral_norm']]
+        self._dtype = kwargs.get('dtype',self._properties['dtype']['default'])
         if W is None:
             self._set('W', self.make_connection('W',verbose=verbose,size=resSize),verbose=verbose)
         else:
@@ -337,7 +340,7 @@ class ESN:
             assert self.resSize == resSize, 'Specified reservoir size and the reservoir matrix are incompatible.'
 
         for settable in __init__set:
-            default_value = self._settable[settable]['default']
+            default_value = self._properties[settable]['default']
             self._set(settable, kwargs.get(settable,default_value),verbose=verbose)
 
         if custom_initState is None:
@@ -354,12 +357,8 @@ class ESN:
             self._device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
-        self._spectral_radius = self.__spectral_radius()
-        self._spectral_norm = self.__spectral_norm()
-
         if verbose:
             print(f'{self.__name} generated. Number of units: {self._resSize} Spectral Radius: {self.spectral_radius}')
-
 
     def scale_reservoir_weights(self,desired_scaling: float, reference:str) -> None:
 
@@ -397,8 +396,8 @@ class ESN:
         self._W = self._send_tensor_to_device(self._W)
 
     def reconnect_reservoir(self,xn: list[float],pn: list[float],**kwargs) -> None:
-        self.__xn = xn
-        self.__pn = pn
+        self._xn = xn
+        self._pn = pn
         self.make_connection('W',inplace=True,verbose=False)
         if kwargs.get('verbose',self._verbose):
             print('Reservoir reconnected.')
@@ -1038,17 +1037,31 @@ class ESN:
         else:
             raise Exception(f"Current reservoir mode is already '{self._layer_mode}'.")
 
-    def copy_from(self,reservoir,bind:bool=False) -> None:
+    def copy_from(self,reservoir,bind:bool=False,**kwargs) -> None:
         assert isinstance(reservoir,self.__class__)
-        # assert reservoir._mm == self._mm, f"{reservoir} is using {str(reservoir._mm).split('.')[0]}, whereas {self} is using {str(self._mm).split('.')[0]}."
-        for attr_name,attr in reservoir.__dict__.items():
-            if isinstance(attr,Optional[float | Callable]) or bind:
-                self.__setattr__(attr_name,attr)
-            else:
-                if isinstance(attr,torch.Tensor):
-                    self.__setattr__(attr_name,attr.clone())
-                else:
-                    self.__setattr__(attr_name,attr.copy())
+        assert self._os == reservoir._os, f'Reservoirs do not have same OS: {self._os} != {reservoir._os}.'
+
+        # Skipping layer_mode bcs batch and ensemble layer modes are not supported for ESN.
+        self.__bypass_rules = True
+        verbose = kwargs.get('verbose',True)
+
+        for prop in self._properties:
+            if not prop in ['spectral_radius','spectral_norm']:
+                other_prop = getattr(reservoir,prop)
+                other_prop = self._get_clone(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
+                self._set(prop, other_prop,verbose=verbose)
+
+        for prop in ['_verbose','_xn','_pn','_core_nodes','_reservoir_layer_init','_update_rule_id_train','_initLen','_wobbler',
+                                                '_update_rule_id_val','training_type','validation_type','states','val_states','_y_train_last','reg_X','_X_val']:
+            other_prop = getattr(reservoir,prop)
+            other_prop = self._get_clone(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
+            self.__setattr__(prop, other_prop)
+
+        self.__bypass_rules = False
+        self.__check_connections()
+
+        if verbose:
+            print('Reservoir has been successfully copied.')
     
     def copy_connections_from(self,reservoir,bind:bool=False,weights_list: Optional[list[str]]=None) -> None:
         assert isinstance(reservoir,(ESN,ESNX,ESNS,ESNN))
@@ -1137,16 +1150,20 @@ class ESN:
         verbose = kwargs.get('verbose',self._verbose)
 
         # prop = prop.lower()
-        assert prop in self._settable, f'{prop} is not settable.'
-        _prop = self._settable[prop]['name']
+        assert prop in self._properties, f'{prop} is not settable.'
+        _prop = self._properties[prop]['name']
         
         hasattribute = hasattr(self,_prop)
         # Setting the attribute for the first time in __init__ or brute force setting.
-        if not hasattribute or self.__bypass_rules:
+        if not hasattribute:
             warn = False
+        elif self.__bypass_rules:
+            warn = None
         # Setting the attribute NOT the first time. warn is True if attempting to change the attribute from a not None value.
         else:
             old_val = getattr(self,_prop)
+            if hasattr(old_val,'shape'):
+                assert old_val.shape == val.shape, f'The new {prop} must have the same shape as the old one.'
             warn = False if old_val is None else True
             assert prop not in self.__change_unsupported or warn is False, f'Changing {prop} is not supported.'
 
@@ -1162,7 +1179,7 @@ class ESN:
                 assert not hasattribute or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
 
 
-        assert val is not None or warn is False, f'{prop} cannot be set to None.'
+        assert val is not None or not warn, f'{prop} cannot be set to None.'
 
         if prop == 'spectral_radius':
             if val is not None:
@@ -1183,15 +1200,24 @@ class ESN:
                 if prop == 'Win':
                     size_ -= self.__bias
 
-                self.__setattr__(_prop,self._get_clone(val))
+                self.__setattr__(_prop,val)
+
+                if prop == 'W':
+                    self._spectral_radius = self.__spectral_radius()
+                    self._spectral_norm = self.__spectral_norm()
             try:
                 self.__setattr__(size_str,size_)
                 self.__check_connections()
             except AssertionError as asserr:
-                print(asserr,'Assignment unsuccessful.')
-                size_ = old_val.shape[1] if prop != 'Wout' else old_val.shape[0]
-                self.__setattr__(size_str,size_)
-                self.__setattr__(_prop,old_val)
+                if not self.__bypass_rules:
+                    print(asserr,'Assignment unsuccessful.')
+                    if old_val is not None:
+                        size_ = old_val.shape[1] if prop != 'Wout' else old_val.shape[0]
+                        self.__setattr__(size_str,size_)
+                        self.__setattr__(_prop,old_val)
+                    else:
+                        self.__setattr__(size_str,None)
+                        self.__setattr__(_prop,None)
         else:
             self.__setattr__(_prop,val)
             if self._verbose:
@@ -1501,9 +1527,9 @@ class ESN:
 
     def __spectral_radius(self):
         if self._os == 'numpy':
-            return abs(np.linalg.eigvals(self._W)).max().real #abs(linalg.eig(self._W)[0]).max()
+            return float(abs(np.linalg.eigvals(self._W)).max().real) #abs(linalg.eig(self._W)[0]).max()
         elif self._os == 'torch':
-            return torch.linalg.eigvals(self._W.cpu()).abs().max().item()
+            return float(torch.linalg.eigvals(self._W.cpu()).abs().max().item())
         else:
             raise Exception("Unknown os type.")
 
@@ -1533,7 +1559,7 @@ class ESN:
             # Win = np.random.uniform(size=(self._resSize,inSize+bias))<0.5
             # self._Win = np.where(Win==0, -1, Win)
         elif w_name == 'W':
-            w = np.random.choice(self.__xn, p=self.__pn,size=(size,size))
+            w = np.random.choice(self._xn, p=self._pn,size=(size,size))
         elif w_name == 'Wback':
             w = np.random.uniform(-2,2,size=(self._resSize,size))
 
