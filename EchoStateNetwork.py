@@ -1530,9 +1530,9 @@ class ESN:
 
     def __spectral_norm(self):
         if self._os == 'numpy':
-            return np.linalg.svd(self._W,compute_uv=False).max()
+            return float(np.linalg.svd(self._W,compute_uv=False).max())
         elif self._os == 'torch':
-            return torch.linalg.svdvals(self._W.cpu()).max().item()
+            return float(torch.linalg.svdvals(self._W.cpu()).max().item())
         else:
             raise Exception("Unknown os type.")
 
