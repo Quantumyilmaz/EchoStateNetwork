@@ -32,7 +32,7 @@ mse = lambda k,l: np.square(k-l).mean()
 
 mape = lambda k,l: np.abs(1-l/k).mean()
 
-training_type_dict = {0:"Self Feedback",1:"Output feedback/Teacher forced",2:"Regular/Input driven",3:"Regular/Teacher forced"}
+training_type_dict = {0:"Self Feedback",1:"Output Feedback/Teacher Forced",2:"Regular/Input Driven",3:"Regular/Teacher Forced"}
 
 validation_rule_dict = {
                         0:
@@ -156,6 +156,7 @@ class ESN:
     training_type = None
     validation_type = None
     reg_X = None
+
     no_of_reservoirs = None
     batch_size = None
 
@@ -164,17 +165,18 @@ class ESN:
     _Wout = None
     _Wback = None
     
-    _U = None
     _initLen = None
     _update_rule_id_train = None
     _update_rule_id_val = None
     _X_val = None
+    _U = None
 
     _properties = settables
 
     __bias = None
     __name = 'ESN'
     __bypass_rules = False
+    __safe_update = True
 
     __stt = np.ndarray | torch.Tensor #SupportedTensorTypes
     __stt_str = 'numpy array or pytorch tensor' #SupportedTensorTypes
@@ -381,19 +383,29 @@ class ESN:
             self._W = self._W.cpu()
 
         if reference=='ev':
-            self._W *= desired_scaling / self.spectral_radius
-            self._spectral_radius = self.__spectral_radius()
-            self._spectral_norm = self.__spectral_norm()
-            print(f'Done: {self.spectral_radius}')
+            spectral_ = self.spectral_radius
         elif reference=='sv':
-            self._W *= desired_scaling / self.spectral_norm
-            self._spectral_radius = self.__spectral_radius()
-            self._spectral_norm = self.__spectral_norm()
-            print(f'Done: {self.spectral_norm}')
+            spectral_ = self.spectral_norm
         else:
             raise Exception('{reference} is unsupported.')
         
+        self._W *= desired_scaling / spectral_
+        self._spectral_radius = self.__spectral_radius()
+        self._spectral_norm = self.__spectral_norm()
         self._W = self._send_tensor_to_device(self._W)
+        print(f'Done: spectral radius= {self.spectral_radius}, spectral norm= {self.spectral_norm}.')
+
+    def mc(self,u,delay,initLen,trainLen,reg_type='pinv',**kwargs):...
+
+        # training_data = u[:,initLen-delay:trainLen-delay]
+
+        # self._clear()
+        # self.excite(u=u[:,:trainLen],initLen=initLen)
+        # self.fit(y=training_data,reg_type=reg_type,f_out_inverse=kwargs.get('f_out_inverse'))
+        # forecasts = self.validate(valLen=u.shape[1]-trainLen,u=u[:,trainLen:]).ravel()
+        # target = u[:,trainLen-delay:-delay].ravel()
+        # self._clear()
+        # return np.corrcoef(forecasts,target)[0,1]**2
 
     def reconnect_reservoir(self,xn: list[float],pn: list[float],**kwargs) -> None:
         self._xn = xn
@@ -469,13 +481,6 @@ class ESN:
         outSize = 0
 
         if not validation_mode:
-            if self._update_rule_id_train is None:
-                self._update_rule_id_train = update_rule_id
-            else:
-                assert self._update_rule_id_train == update_rule_id
-
-            self.training_type = training_type_dict[update_rule_id]
-
             if update_rule_id % 2 - 1: #if y is None
                 assert wobbler is None and not wobble ,"Wobble states are desired only in the case of teacher forced setting."
             
@@ -499,6 +504,13 @@ class ESN:
                 else:
                     self._wobbler = 0
                 y_ = y + self._wobbler
+
+            if self._update_rule_id_train is None:
+                self._update_rule_id_train = update_rule_id
+            else:
+                assert self._update_rule_id_train == update_rule_id
+
+            self.training_type = training_type_dict[update_rule_id]
 
         else:
             new_val_type = validation_rule_dict[self._update_rule_id_train][update_rule_id]
@@ -537,7 +549,7 @@ class ESN:
         # Exciting the reservoir states
         assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
         X = self._tensor(np.zeros((self.__bias + self._resSize + inSize + outSize,trainLen-initLen),dtype=self._dtype))
-
+        self.__safe_update = False
         # no u, no y
         if update_rule_id == 0:
             if validation_mode:
@@ -633,6 +645,9 @@ class ESN:
         else:
             self.reg_X = X if self.reg_X is None else self._cat([self.reg_X,X],axis=1)
             self.states = states if self.states is None else self._cat([self.states,states],axis=1)
+
+        self.__safe_update = True
+        self.__check_reservoir_layer()
 
     def fit(self,
                 y: np.ndarray,
@@ -798,8 +813,8 @@ class ESN:
                 initTrainLen_ratio: Optional[float]=None,
                 trainLen: Optional[int]=None,
                 valLen: Optional[int]=None,
-                wobble_train: bool=False,
-                wobbler_train: Optional[np.ndarray]=None,
+                wobble: bool=False,
+                wobbler: Optional[np.ndarray]=None,
                 null_state_init: bool=True,
                 custom_initState: Optional[np.ndarray]=None,
                 regr: Optional[Callable]=None,
@@ -842,9 +857,9 @@ class ESN:
 
             - valLen: Total no of validation steps. Will be set to the length of input data.
 
-            - wobble_train: For enabling random noise.
+            - wobble: For enabling random noise.
 
-            - wobbler_train: User can provide custom noise. Default is np.random.uniform(-1,1)/10000.
+            - wobbler: User can provide custom noise. Default is np.random.uniform(-1,1)/10000.
 
             - null_state_init: If True, starts the reservoir from null state. If False, starts them randomly. Default is True.
 
@@ -864,16 +879,7 @@ class ESN:
         """
         assert y_t is not None or training_data is not None
 
-        self._inSize = None
-        self._outSize = None
-
-        self.reg_X = None
-        self._X_val = None
-        self._Wout = None
-        self.states = None
-        self.val_states = None
-        self._update_rule_id_train = None
-        self._update_rule_id_val = None
+        self._clear()
 
         if custom_initState is None:
             self._reservoir_layer = np.zeros((self._resSize,1),dtype=self._dtype) if null_state_init else np.random.rand(self._resSize,1).astype(self._dtype)
@@ -889,8 +895,8 @@ class ESN:
                     initLen=initLen,
                     trainLen=trainLen,
                     initTrainLen_ratio=initTrainLen_ratio,
-                    wobble=wobble_train,
-                    wobbler=wobbler_train
+                    wobble=wobble,
+                    wobbler=wobbler
                     )
 
         assert self._initLen is not None
@@ -919,7 +925,18 @@ class ESN:
         
         return pred
 
-    def test(self):...
+    def test(self,initLen,teacherLen,autonomLen,y_test):...
+        # assert self._layer_mode == 'single'
+        # forecasts = np.zeros((y_test.shape[0],teacherLen-initLen+autonomLen)).astype(self.dtype)
+        # for t in range(initLen-1):
+        #     self.update_reservoir_layer(None,y_test[:,t])
+        # for t in range(initLen,teacherLen):
+        #     self.update_reservoir_layer(None,y_test[:,t-1])
+        #     forecasts[:,t-initLen] = self.__call__(self._pack_internal_state(None,y_test[:,t-1]))
+        # for t in range(teacherLen,teacherLen+autonomLen):
+        #     self.update_reservoir_layer(None,forecasts[:,t-1-initLen])
+        #     forecasts[:,t-initLen] = self.__call__(self._pack_internal_state(None,forecasts[:,t-1-initLen]))
+        # return forecasts
 
     def update_reservoir_layer(self,
         in_:Optional[np.ndarray | torch.Tensor]=None,
@@ -931,12 +948,26 @@ class ESN:
         - mode: Optional. Set to 'train' if you are updating the reservoir layer for training purposes. Set to 'val' if you are doing so for validation purposes. \
                 This will allow the ESN to name the training/validation modes, which can be accessed from 'training_type' and 'val_type' attributes.
         """
-        
+        # if in_ is not None:
+        #     # assert len(in_.shape) == 2,f'{in_.shape}'
+        #     assert in_.shape[0]==self.reservoir_layer.shape[-1], f'Inconsistent reservoir and input shape: {in_.shape}'
+        # if out_ is not None:
+        #     # assert len(out_.shape) == 2,f'{out_.shape}'
+        #     assert out_.shape[0]==self.reservoir_layer.shape[-1], 'Inconsistent reservoir and input shape.'
         self._update_rule_id_check(in_,out_,mode)
 
         self._reservoir_layer = self._get_update(self._reservoir_layer,in_=in_,out_=out_)
 
-        assert not self.__check_nan(self._reservoir_layer), 'NaN value encountered in reservoir layer!'
+        if self.__safe_update:
+            self.__check_reservoir_layer()
+            # _hasnan,_correctshape = self.__check_reservoir_layer()
+
+            # assert not _hasnan, 'NaN value encountered in reservoir layer!'
+
+            # if not _correctshape:
+            #     in_shape_msg = '' if in_ is None else f'Input shape: {in_.shape}.'
+            #     out_shape_msg = '' if out_ is None else f'Output shape: {out_.shape}.'
+            #     raise Exception('Reservoir layer has chaged shape. Check your input and/or output!' + in_shape_msg + ' ' + out_shape_msg)
 
     def update_reservoir_layers_serially(self
         , in_: Optional[np.ndarray | torch.Tensor] = None
@@ -1133,6 +1164,19 @@ class ESN:
         else:
             self._verbose = not verbose
 
+    def _clear(self):
+        self.reg_X = None
+        self.states = None
+        self.val_states = None
+        self.training_type = None
+        self.validation_type = None
+        self._initLen = None
+        self._update_rule_id_train = None
+        self._update_rule_id_val = None
+        self._X_val = None
+        self._U = None
+        self.reset_reservoir_layer()
+        
     def forward(self,in_:Optional[np.ndarray | torch.Tensor]=None,out_:Optional[np.ndarray | torch.Tensor]=None) -> np.ndarray | torch.Tensor:
         self.update_reservoir_layer(in_,out_)
         return self.__call__(self._pack_internal_state(in_,out_))
@@ -1187,7 +1231,7 @@ class ESN:
             size_ = None
 
             if val is not None:
-                assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self._os])
+                assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self._os]), 'Connection matrices must be 2D.'
                 assert val.dtype == self._dtype, f"Data type of the {weight_dict[prop]} connection matrix provided by the user does not match the reservoir's data type: {self._dtype} vs. {val.dtype}.\
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
 
@@ -1237,7 +1281,7 @@ class ESN:
             assert isinstance(in_,Optional[torch.Tensor]) and isinstance(out_,Optional[torch.Tensor]), 'Please give pytorch tensors.'
 
         assert self._W.shape[-1]==x.shape[-2], [self._W.shape,x.shape]
-        resPart = self._f(self._mm( self._W, x ))
+        resPart = self._mm( self._W, x )
         inPart = 0
         outPart = 0
 
@@ -1560,6 +1604,8 @@ class ESN:
 
         return self._send_tensor_to_device(self._tensor(w.astype(self._dtype)))
 
+    def __bulk_update(self):...
+
     def __check_connections(self):
         assert self._W.shape[0] == self._W.shape[1], f'Reservoir matrix has to be square matrix: {self._W.shape[0]} != {self._W.shape[1]}.'
         assert self._W.shape[1] == self._resSize, f'Mismatched reservoir size and reservoir weights: {self._W.shape[1]} != {self._resSize}.'
@@ -1578,13 +1624,21 @@ class ESN:
                 assert self._Wout.shape[0] == self._Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self._Wout.shape[0]} != {self._Wback.shape[1]}.'
                 assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
     
-    def __check_nan(self,x):
+    def __check_reservoir_layer(self):
+
         if self._os == 'numpy':
-            return np.any(np.isnan(x))
+            _hasnan =  np.any(np.isnan(self._reservoir_layer))
         elif self._os == 'torch':
-            return torch.any(torch.isnan(x)).item()
+            _hasnan = torch.any(torch.isnan(self._reservoir_layer)).item()
         else:
             raise Exception("Unknown os type.")
+        
+        _correctshape = self._reservoir_layer_init.shape == self._reservoir_layer.shape
+
+        assert not _hasnan, 'NaN value encountered in reservoir layer!'
+        assert _correctshape, 'Reservoir layer has chaged shape!'
+
+        # return _hasnan,_correctshape
 
 
 class ESNX(ESN):
