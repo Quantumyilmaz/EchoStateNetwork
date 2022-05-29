@@ -6,6 +6,10 @@
 Welcome to EchoStateNetwork's documentation!
 ============================================
 
+.. include:: ../../README.md
+   :parser: myst_parser.sphinx_
+
+
 .. toctree::
    ESN.rst
    ESNX.rst
