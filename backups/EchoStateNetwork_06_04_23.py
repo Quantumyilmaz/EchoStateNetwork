@@ -359,8 +359,6 @@ class ESN:
             self._device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
             self._torchify()
 
-        self.__set_updater()
-        
         if verbose:
             print(f'{self.__name} generated. Number of units: {self._resSize} Spectral Radius: {self.spectral_radius}')
 
@@ -482,14 +480,17 @@ class ESN:
 
         #Handling I/O
 
-        self.__prepare_for_update(self.reservoir_layer,u,y)
+        inSize = 0
+        outSize = 0
 
         if update_rule_id > 1: #if u is not None:
             assert len(u.shape) == 2
+            inSize = u.shape[0]
             trainLen = u.shape[-1] if trainLen is None else trainLen
 
         if update_rule_id % 2:  #if y is not None:
             assert len(y.shape) == 2
+            outSize = y.shape[0]
             trainLen = y.shape[-1] if trainLen is None else trainLen
 
         
@@ -537,6 +538,8 @@ class ESN:
             else:
                 assert self._update_rule_id_train == update_rule_id \
                     ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.validation_type} mode."
+            inSize = 0 if self._inSize is None else self._inSize * (self._update_rule_id_train>1)
+            outSize = 0 if self._outSize is None else self._outSize * (self._update_rule_id_train%2)
 
 
 
@@ -549,10 +552,10 @@ class ESN:
 
         # Exciting the reservoir states
         assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-
+        X = self._tensor(np.zeros((self.__bias + self._resSize + inSize + outSize,trainLen-initLen),dtype=self._dtype))
 
         self.__safe_update = False
-        X = self._tensor(np.zeros((self.__bias + self._resSize + self._inSize + self._outSize,trainLen-initLen),dtype=self._dtype))
+
         # no u, no y
         if update_rule_id == 0:
             if validation_mode:
@@ -626,7 +629,7 @@ class ESN:
             raise NotImplementedError("Could not find a case for this training.")       
 
         
-        states = X[self._inSize+self._outSize+self.__bias:,:]
+        states = X[inSize+outSize+self.__bias:,:]
         assert states.shape[0] == self._resSize
         if validation_mode:
             self.val_states = states
@@ -869,8 +872,7 @@ class ESN:
                     wobble=wobble,
                     wobbler=wobbler
                     )
-        
-        # one-step ahead prediction
+
         if training_data is None:
             training_data = y_t[:,self._initLen:]
         
@@ -912,7 +914,7 @@ class ESN:
     def update_reservoir_layer(self,
         in_:Optional[np.ndarray | torch.Tensor]=None,
         out_:Optional[np.ndarray | torch.Tensor]=None,
-        get_x:bool=False,
+        get_x:Optional[bool]=False,
         mode:Optional[str]=None) -> None:
         """
         - in_: input array
@@ -1202,7 +1204,7 @@ class ESN:
                 self.scale_reservoir_weights(desired_scaling=val,reference='sv')
         elif prop in weight_dict:
             size_str = size_dict[prop]
-            size_ = 0
+            size_ = None
 
             if val is not None:
                 assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self._os]), 'Connection matrices must be 2D.'
@@ -1245,6 +1247,50 @@ class ESN:
                 warnings.warn("You have set the bias to zero.")
             self.__bias = False if self._bias is None else True
             self._make_bias_vec()
+
+    def _get_update(self
+                    ,x,in_:Optional[np.ndarray | torch.Tensor]=None
+                    ,out_:Optional[np.ndarray | torch.Tensor]=None
+                    ):
+
+        if self._os == 'torch':
+            assert isinstance(in_,Optional[torch.Tensor]) and isinstance(out_,Optional[torch.Tensor]), 'Please give pytorch tensors.'
+
+        assert self._W.shape[-1]==x.shape[-2], [self._W.shape,x.shape]
+        resPart = self._mm( self._W, x )
+        inPart = 0
+        outPart = 0
+
+        if in_ is not None:
+            assert self._get_tensor_device(in_) == self._device, (self._device,in_)
+            if self._Win is None:
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
+            assert self._Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self._Win.shape,in_.shape]
+            if self.__bias:
+                inPart = self._mm(self._Win, self._vstack((self._bias_vec,self._atleastND(in_))))
+            else:
+                inPart = self._mm(self._Win, self._atleastND(in_))
+
+        if out_ is not None:
+            if self._Wback is None:
+                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
+
+            assert self._get_tensor_device(out_) == self._device, (self._device,out_)
+            
+            assert self._Wback.shape[1]==self._atleastND(out_).shape[0]
+
+            outPart = self._mm(self._Wback, self._atleastND(out_))
+
+
+        if self._leak_version == 1:
+            resPart *= self._leak_rate
+            fullPart = self._f(resPart + inPart + outPart)
+        elif self._leak_version == 0:
+            fullPart = self._leak_rate * self._f(resPart + inPart + outPart)
+        else:
+            raise Exception('Unknown leak version.')
+        
+        return (1-self._leak_rate)*x + fullPart
 
     def _make_bias_vec(self):
         # assert self._bias != 0,'Bias equal to zero is forbidden.'
@@ -1331,8 +1377,8 @@ class ESN:
 
     def _pack_internal_state(self,in_=None,out_=None):
 
-        in_ = self._atleastND(in_)
-        out_ = self._atleastND(out_)
+        # in_ = self._atleastND(in_)
+        # out_ = self._atleastND(out_)
 
         result = self._reservoir_layer.copy()
 
@@ -1535,15 +1581,7 @@ class ESN:
 
         return self._send_tensor_to_device(self._tensor(w.astype(self._dtype)))
 
-    def __bulk_update(self,len1,len2,u,y,fb=False):...
-        # if fb:
-        #     pass
-        # else:
-        #     for t in range(1,len1):
-        #         self.update_reservoir_layer(u[:,t],y[:,t-1])
-        #     for t in range(len1,len2):
-        #         X[:,t-len1] = self.update_reservoir_layer(u[:,t],y_[:,t-1],get_x=True).ravel()
-        #         self.__y_train_last = y[:,-1]
+    def __bulk_update(self):...
 
     def __check_connections(self):
         assert self._W.shape[0] == self._W.shape[1], f'Reservoir matrix has to be square matrix: {self._W.shape[0]} != {self._W.shape[1]}.'
@@ -1579,63 +1617,6 @@ class ESN:
 
         # return _hasnan,_correctshape
 
-    def __prepare_for_update(self
-                    ,x:np.ndarray | torch.Tensor
-                    ,in_:Optional[np.ndarray | torch.Tensor]=None
-                    ,out_:Optional[np.ndarray | torch.Tensor]=None
-                    ):
-
-        if self._os == 'torch':
-            assert isinstance(in_,Optional[torch.Tensor]) and isinstance(out_,Optional[torch.Tensor]), 'Please give pytorch tensors.'
-
-        assert self._W.shape[-1]==x.shape[-2], [self._W.shape,x.shape]
-
-        if in_ is not None:
-            assert self._get_tensor_device(in_) == self._device, (self._device,in_)
-            if self._Win is None:
-                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
-            assert self._Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self._Win.shape,in_.shape]
-
-        if out_ is not None:
-            if self._Wback is None:
-                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
-
-            assert self._get_tensor_device(out_) == self._device, (self._device,out_)
-            
-            assert self._Wback.shape[1]==self._atleastND(out_).shape[0]
-
-    def __set_updater(self):
-
-        if self.__bias:
-            __updater_inPart = lambda in_: self._mm(self._Win, self._vstack((self._bias_vec,self._atleastND(in_))))
-        else:
-            __updater_inPart = lambda in_: self._mm(self._Win, self._atleastND(in_))
-
-        if self._leak_version == 1:
-            __updater_fullPart = lambda inPart,resPart,outPart: self._f(self._leak_rate*resPart + inPart + outPart)
-        elif self._leak_version == 0:
-            __updater_fullPart = lambda inPart,resPart,outPart: self._leak_rate * self._f(resPart + inPart + outPart)
-        else:
-            raise Exception('Unknown leak version.')
-
-        def _updater(x:np.ndarray | torch.Tensor,
-                      in_:Optional[np.ndarray | torch.Tensor]=None,
-                      out_:Optional[np.ndarray | torch.Tensor]=None
-                        ):
-
-            resPart = self._mm( self._W, x )
-            inPart = 0
-            outPart = 0
-
-            if in_ is not None:
-                inPart = __updater_inPart(in_=in_)
-            if out_ is not None:
-                outPart = self._mm(self._Wback, self._atleastND(out_))
-            
-            return (1-self._leak_rate)*x + __updater_fullPart(inPart=inPart,resPart=resPart,outPart=outPart)
-        
-        self._get_update = _updater
-    
     def __compare_dtype(self,x):
         return x.dtype == self._dtype or str(x.dtype).split('.')[-1] == self._dtype
 
