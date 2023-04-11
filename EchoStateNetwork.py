@@ -578,7 +578,7 @@ class ESN:
                 f_out_inverse: Optional[Callable]=None,
                 initLen: Optional[int]=None, 
                 trainLen: Optional[int]=None,
-                valLen: Optional[int]=None,
+                predLen: Optional[int]=None,
                 wobble: bool | np.ndarray | torch.Tensor=False,
                 wobble_val: bool | np.ndarray | torch.Tensor=False,
                 regr: Optional[Callable]=None,
@@ -619,7 +619,7 @@ class ESN:
 
             - trainLen: Total no of training steps. Will be set to the length of input data.
 
-            - valLen: Total no of validation steps. Will be set to the length of input data.
+            - predLen: Total no of validation steps. Will be set to the length of input data.
 
             - wobble: For enabling random noise.
 
@@ -668,9 +668,8 @@ class ESN:
         
         return self.predict(u=X_v,
                             y=y_v,
-                            predLen=valLen,
-                            wobble = wobble_val,
-                            validation=True
+                            predLen=predLen,
+                            wobble = wobble_val
                             )
 
     def test(self,initLen,teacherLen,autonomLen,y_test):...
