@@ -1099,8 +1099,8 @@ class ESN:
 
     def _pack_internal_state(self,in_=None,out_=None):
 
-        # in_ = self._atleastND(in_)
-        # out_ = self._atleastND(out_)
+        in_ = self._atleastND(in_)
+        out_ = self._atleastND(out_)
 
         result = self.__copy(self._reservoir_layer)
 
