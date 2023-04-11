@@ -85,10 +85,12 @@ settables = {'dtype':
                 {'name':'_Wback','default':None},
             }
 
+
 def esnpropertyget(fname):
     def get(esn):
         return getattr(esn,esn._properties[fname]['name'])
     return get
+
 def esnpropertyset(fname):
     def set(esn,val):
         esn._set(fname,val=val)
@@ -149,10 +151,9 @@ def is_normal(x):
 class ESN:
     
     states = None
-    val_states = None
     training_type = None
     validation_type = None
-    reg_X = None
+    X = None
 
     no_of_reservoirs = None
     batch_size = None
@@ -162,10 +163,10 @@ class ESN:
     _Wout = None
     _Wback = None
     
+    _get_update = None # Wont be None after initialization.
     _initLen = None
     _update_rule_id_train = None
     _update_rule_id_val = None
-    _X_val = None
     _U = None
 
     _properties = settables
@@ -174,11 +175,12 @@ class ESN:
     __bias = None
     __wobbler_val = None
     __y_train_last = None
+    __X_train_last = None
     __bypass_rules = False
     __safe_update = True
 
     __stt = np.ndarray | torch.Tensor #SupportedTensorTypes
-    __stt_str = 'numpy array or pytorch tensor' #SupportedTensorTypes
+    __stt_strdict = {'numpy':'numpy array','torch':'pytorch tensor'}
     __change_unsupported = ['dtype','device','resSize']
     __os_type_dict = {'numpy':np.ndarray,'torch':torch.Tensor}
 
@@ -279,7 +281,6 @@ class ESN:
                 null_state_init: bool=True,
                 custom_initState: Optional[np.ndarray]=None,
                 **kwargs) -> None:
-        
         """ 
 
         Description
@@ -325,7 +326,7 @@ class ESN:
         verbose = kwargs.get("verbose",True)
         use_torch = kwargs.get("use_torch",False)
 
-        self._os = 'numpy'
+        self.__os = 'numpy'
         self._mm = np.matmul if not hasattr(self,"_mm") else self._mm  #matrix multiplier function. diger classlarin farkli _mm lerini overridelamamak icin
         self._layer_mode = 'single' #batch, ensemble
         self._atleastND = at_least_2d
@@ -357,7 +358,7 @@ class ESN:
 
         if use_torch:
             self._device = kwargs.get('device',"cuda") if torch.cuda.is_available() else "cpu"
-            self._torchify()
+            self.__torchify()
 
         self.__set_updater()
         
@@ -381,7 +382,7 @@ class ESN:
         
         print(f"Scaling reservoir matrix to have spectral {bool(reference=='ev')*'radius'}{bool(reference=='sv')*'norm'} {desired_scaling}...")
 
-        if self._get_tensor_device(self._W) != 'cpu':
+        if self.__get_tensor_device(self._W) != 'cpu':
             self._W = self._W.cpu()
 
         if reference=='ev':
@@ -394,7 +395,7 @@ class ESN:
         self._W *= desired_scaling / spectral_
         self._spectral_radius = self.__spectral_radius()
         self._spectral_norm = self.__spectral_norm()
-        self._W = self._send_tensor_to_device(self._W)
+        self._W = self.__send_tensor_to_device(self._W)
         print(f'Done: spectral radius= {self.spectral_radius}, spectral norm= {self.spectral_norm}.')
 
     def mc(self,u,delay,initLen,trainLen,reg_type='pinv',**kwargs):
@@ -402,7 +403,7 @@ class ESN:
         training_data = u[:,initLen-delay:trainLen-delay]
 
         self.clear()
-        self.excite(u=u[:,:trainLen],initLen=initLen)
+        self.__excite(u=u[:,:trainLen],initLen=initLen)
         self.fit(y=training_data,reg_type=reg_type,f_out_inverse=kwargs.get('f_out_inverse'))
         forecasts = self.validate(valLen=u.shape[1]-trainLen,u=u[:,trainLen:]).ravel()
         target = u[:,trainLen-delay:-delay].ravel()
@@ -416,237 +417,64 @@ class ESN:
         if kwargs.get('verbose',self._verbose):
             print('Reservoir reconnected.')
 
-    # TODO trainLen gereksiz sanki
-    # TODO wobble ve wobbler i birlestir
-    # TODO put the for loops into a function and call that here
     def excite(self,
-                u: Optional[np.ndarray]=None,
-                y: Optional[np.ndarray]=None,
-                initLen: Optional[int]=None, 
-                trainLen: Optional[int]=None,
-                initTrainLen_ratio: Optional[float]=None,
-                wobble: bool=False,
-                wobbler: Optional[np.ndarray | torch.Tensor]=None,
-                **kwargs) -> None:
+            u: Optional[np.ndarray|torch.Tensor]=None,
+            y: Optional[np.ndarray|torch.Tensor]=None,
+            initLen: Optional[int|float]=None, 
+            totLen: Optional[int]=None,
+            wobble: bool|np.ndarray|torch.Tensor=False,
+            validation: bool=False
+            )-> np.ndarray|torch.Tensor:
+
         """
 
         Description
         -
-        Stimulate reservoir states either with given inputs and/or outputs or let it excite itself without input and output.
+        Feed the reservoir either with given inputs and/or outputs and optionally make a fit to data. Returns the excited states.
 
         Variables
         -
-
             - u: Input. Has shape [...,time].
 
             - y: To be predicted. Has shape [...,time].
 
 
             - initLen: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. 
-            Will be set to an eighth of the training length if not provided.
+                        Will be set to an eighth of the training length if not provided. 
+                        Alternatively, the user can provide the initialization period as ratio of the training length.
 
-            - trainLen: Total no of training steps. Will be set to the length of input data.
+            - trainLen: Total no of training steps. Will be set to the length of input data if not provided.
 
-            - initTrainLen_ratio: Alternative to initLen, the user can provide the initialization period as ratio of the training length. 
-            An input of 8 would mean that the initialization period will be an eighth of the training length.
+            - wobble: For enabling random noise. User can provide custom noise. Default is np.random.uniform(-1,1)/10000.
 
-            - wobble: For enabling random noise.
+            - See 'fit' method's documentation for other (keyword) arguments.
 
-            - wobbler: User can provide custom noise. Default is np.random.uniform(-1,1)/10000.
-
-            - keyword arguments:
-
-                - validation_mode: You can use this method in validation mode after calling this method to prepare the reservoir for validation.
-                
-                - verbose: Set to False to disable messages and warnings.
+            - validation: You can use this method after training to prepare the reservoir for validation.
         """
 
-        # Some stuff needs checking right out the bat.
-
-        verbose = kwargs.get('verbose',self._verbose)
-
-        validation_mode = kwargs.get("validation_mode",False)
-        assert bool(initLen)+bool(initTrainLen_ratio) < 2, "Please give either initLen or initTrainLen_ratio."
-        assert isinstance(u,Optional[self.__stt]) and isinstance(y,Optional[self.__stt]), f'Please give {self.__stt_str}. type(u):{type(u)} and type(y):{type(y)}'
-        
-        # Update rule recognition based on function inputs
-
-        update_rule_id = self._get_update_rule_id(u,y)
-        
-        """
-        0: both no
-        1: no u yes y
-        2: yes u no y
-        3: both yes
-        """
-
-        #Handling I/O
-
-        self.__prepare_for_update(self.reservoir_layer,u,y)
-
-        if update_rule_id > 1: #if u is not None:
-            assert len(u.shape) == 2
-            trainLen = u.shape[-1] if trainLen is None else trainLen
-
-        if update_rule_id % 2:  #if y is not None:
-            assert len(y.shape) == 2
-            trainLen = y.shape[-1] if trainLen is None else trainLen
-
-        
-        if not validation_mode:
-            # Wobbler
-            if update_rule_id % 2 - 1: #if y is None
-                assert wobbler is None and not wobble ,"Wobble states are desired only in the case of teacher forced setting."
-            else:
-                assert isinstance(wobble,bool),"wobble parameter must be boolean."
-                if wobbler is not None:
-                    assert y.shape == wobbler.shape, f"Wobbler must have shape same as the output: {y.shape} != {wobbler.shape}."
-                    wobbler_ = wobbler
-                elif wobble:
-                    wobbler_ = self._tensor(np.random.uniform(-1,1,size=y.shape).astype(self._dtype)/10000)
-                else:
-                    wobbler_ = 0
-                y_ = y + wobbler_
-
-            if self._update_rule_id_train is None:
-                self._update_rule_id_train = update_rule_id
-            else:
-                assert self._update_rule_id_train == update_rule_id
-
-            self.training_type = training_type_dict[update_rule_id]
-
-        else:
-            new_val_type = validation_rule_dict[self._update_rule_id_train][update_rule_id]
-            if self._update_rule_id_val is None:
-                self._update_rule_id_val = update_rule_id
-            else:
-                if self._verbose:
-                    warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
-                #assert self._update_rule_id_val == update_rule_id
-            
-            self.validation_type = new_val_type
-
-            if self.validation_type == validation_rule_dict[0][0]:
-                if self._verbose:
-                    warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
-
-            if (self._update_rule_id_train - update_rule_id) == 1 and update_rule_id%2 == 0:
-                pass
-            elif self._update_rule_id_train == 2 and update_rule_id==0:
-                pass
-            else:
-                assert self._update_rule_id_train == update_rule_id \
-                    ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.validation_type} mode."
-
-
-
-        # Initialization and Training Lengths
-        assert initTrainLen_ratio is None or initTrainLen_ratio >= 1, "initTrainLen_ratio must be larger equal than 1."
-        if initLen is None:
-            initLen = trainLen//initTrainLen_ratio if initTrainLen_ratio else trainLen//8
-        assert initLen >= 1 or validation_mode
-        self._initLen = initLen
-
-        # Exciting the reservoir states
-        assert isinstance(trainLen,int), f"Training length must be integer.{trainLen} is given."
-
-
-        self.__safe_update = False
-        X = self._tensor(np.zeros((self.__bias + self._resSize + self._inSize + self._outSize,trainLen-initLen),dtype=self._dtype))
-        # no u, no y
-        if update_rule_id == 0:
-            if validation_mode:
-                if self._update_rule_id_train == 1:
-                    # training was with no u, yes y. now validation with no u, yes y_pred
-                    y_temp = self.__call__(self.reg_X[:,-1]) + self.__wobbler_val[:,-1]
-                    for t in range(trainLen):
-                        X[:,t] =  self.update_reservoir_layer(None,y_temp,get_x=True).ravel()
-                        y_temp = self.__call__(X[:,t]) + self.__wobbler_val[:,t]
-                elif self._update_rule_id_train == 2:
-                    raise Exception('Consider teacher forced training and autonomous validation.')
-                    # training was with yes u, no y. now validation with yes u_pred, no y
-                    # This is only useful when input data and output data differ by a phase.
-                else:
-                    # training was with no u, no y
-                    for t in range(trainLen):
-                        X[:,t] = self.update_reservoir_layer(get_x=True).ravel()
-            else:
-                for t in range(1,initLen):
-                    self.update_reservoir_layer()
-                for t in range(initLen,trainLen):
-                    X[:,t-initLen] = self.update_reservoir_layer(get_x=True).ravel()
-        # no u, yes y
-        elif update_rule_id == 1:
-            if validation_mode:
-                # no u, yes y
-                y_temp = self.__y_train_last
-                for t in range(trainLen):
-                    X[:,t-initLen] = self.update_reservoir_layer(None,y_temp,get_x=True).ravel()
-                    y_temp = y[:,t]  + self.__wobbler_val[:,t]
-            else:
-                for t in range(1,initLen):
-                    self.update_reservoir_layer(None,y_[:,t-1])
-                for t in range(initLen,trainLen):
-                    X[:,t-initLen] = self.update_reservoir_layer(None,y_[:,t-1],get_x=True).ravel()
-                self.__y_train_last = y_[:,-1]
-        # yes u, no y
-        elif update_rule_id == 2:
-            if validation_mode:
-                if self._update_rule_id_train == 3:
-                    # yes u, yes y_pred (generative)
-                    y_temp = self.__call__(self.reg_X[:,-1]) + self.__wobbler_val[:,-1]
-                    for t in range(trainLen):
-                        X[:,t] = self.update_reservoir_layer(u[:,t],y_temp,get_x=True).ravel()
-                        y_temp = self.__call__(X[:,t]) + self.__wobbler_val[:,t]
-                else:
-                    # yes u, no y
-                    for t in range(trainLen):
-                        X[:,t] = self.update_reservoir_layer(u[:,t],get_x=True).ravel()
-            else:
-                for t in range(1,initLen):
-                    self.update_reservoir_layer(u[:,t],None)
-                for t in range(initLen,trainLen):
-                    X[:,t-initLen] = self.update_reservoir_layer(u[:,t],get_x=True).ravel()
-        # yes u, yes y
-        elif update_rule_id == 3:
-            assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
-            if validation_mode:
-                y_temp = self.__y_train_last + self.__wobbler_val[:,-1]
-                for t in range(trainLen):
-                    X[:,t] = self.update_reservoir_layer(u[:,t],y_temp,get_x=True).ravel()
-                    y_temp = y[:,t] + self.__wobbler_val[:,t]
-            else:
-                for t in range(1,initLen):
-                    self.update_reservoir_layer(u[:,t],y_[:,t-1])
-                for t in range(initLen,trainLen):
-                    X[:,t-initLen] = self.update_reservoir_layer(u[:,t],y_[:,t-1],get_x=True).ravel()
-                self.__y_train_last = y_[:,-1]
-        #?
-        else:
-            raise NotImplementedError("Could not find a case for this training.")       
-
+        X = self.__excite(u=u,
+                        y=y,
+                        initLen=initLen,
+                        trainLen=totLen,
+                        validation=validation,
+                        wobble=wobble)
         
         states = X[self._inSize+self._outSize+self.__bias:,:]
         assert states.shape[0] == self._resSize
-        if validation_mode:
-            self.val_states = states
-            self._X_val = X
-        else:
-            self.reg_X = X if self.reg_X is None else self._cat([self.reg_X,X],axis=1)
-            self.states = states if self.states is None else self._cat([self.states,states],axis=1)
-
-        self.__safe_update = True
-        self.__check_reservoir_layer()
-
+        self.X = X if self.X is None else self._cat([self.X,X],axis=1)
+        self.states = states if self.states is None else self._cat([self.states,states],axis=1)
+        
+        return X
+    
     def fit(self,
-                y: np.ndarray,
-                f_out_inverse:Optional[Callable]=None,
-                regr: Optional[Callable]=None,
-                reg_type: str="ridge",
-                ridge_param: float=1e-8,
-                solver: str="auto",
-                error_measure: str="mse",
-                **kwargs) -> np.ndarray:
+            y: np.ndarray|torch.Tensor,
+            f_out_inverse:Optional[Callable]=None,
+            regr: Optional[Callable]=None,
+            reg_type: str="ridge",
+            ridge_param: float=1e-8,
+            solver: str="auto",
+            error_measure: str="mse",
+            **kwargs) -> np.ndarray:
 
         """ 
         
@@ -680,13 +508,13 @@ class ESN:
 
                 - verbose: For the error message.
                 
-                - reg_X: Lets you overwrite self.reg_X (matrix used in regression fit) with a custom one of your choice. For online training purposes, i.e. you "excite" up to a certain point in your data and do a forecast at that point and continue doing this at later points in your data.
+                - reg_X: Lets you choose a custom matrix to be used in regression fit. For online training purposes, i.e. you "excite" up to a certain point in your data and do a forecast at that point and continue doing this at later points in your data.
                 Instead of "exciting" reservoir states multiple times up to these forecasts at varying points, which is inefficient since you perform same calculations repeatedly, you can excite using all data and use partial excitations, i.e. just the part
-                of self.reg_X relevant and required for the regression.
+                of self.X relevant and required for the regression.
 
         """
 
-        assert isinstance(y,self.__stt), f'Please give numpy array or torch tensor. type(y):{type(y)}'
+        assert isinstance(y,self.__os_type_dict[self.__os]), f'Please give {self.__stt_strdict[self.__os]}. type(y):{type(y)}'
 
         if f_out_inverse is None:
             assert self.__f_out_name == 'id', 'It seems that you are using an output activation, which is not the identity. Please provide the inverse of the activation, which is needed for the regression. In case you are using the identity function, please avoid passing it in as argument. Output activation is by default the identity.'
@@ -695,7 +523,6 @@ class ESN:
         y_ = y if f_out_inverse is None else self._fn_interpreter(f_out_inverse)(y)
 
         reg_type_ = reg_type.lower()
-
         if regr is None:
             if reg_type_ == "ridge":
                 regr = Ridge(ridge_param, fit_intercept=False,solver=solver)
@@ -704,18 +531,18 @@ class ESN:
             else:
                 regr = LinearRegression(fit_intercept=False)
 
-        self.reg_X = kwargs.get("reg_X",self.reg_X)
-        assert self.reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
+        reg_X = kwargs.get('reg_X',self.X)
+        assert reg_X is not None, 'No history of reservoir layer was registered. It can be manually given using reg_X keyword argument.'
         if reg_type_ == "pinv":
-            self._Wout = self._mm(y_,self._tensor(regr(self.reg_X)))
+            self._Wout = self._mm(y_,self.__tensor(regr(reg_X)))
         else:
-            regr.fit(self.reg_X.transpose(-1,-2),y_.transpose(-1,-2))
-            self._Wout = self._tensor(regr.coef_)
+            regr.fit(reg_X.transpose(-1,-2),y_.transpose(-1,-2))
+            self._Wout = self.__tensor(regr.coef_)
 
         if error_measure == "mse":
-            error = mse(y_,self._mm( self._Wout , self.reg_X))
+            error = mse(y_,self._mm( self._Wout , reg_X))
         elif error_measure == "mape":
-            error = mape(y_,self._mm( self._Wout , self.reg_X))
+            error = mape(y_,self._mm( self._Wout , reg_X))
         else:
             raise NotImplementedError("Unknown error measure type.")
         
@@ -723,91 +550,44 @@ class ESN:
             print("Training ",error_measure.upper(),": ",error)
 
         return error
-   
-    def validate(self,
-                u: Optional[np.ndarray]=None, \
-                y: Optional[np.ndarray]=None,
-                valLen: Optional[int]=None,
-                wobble: bool=False,
-                wobbler: Optional[np.ndarray | torch.Tensor]=None,
-                **kwargs) -> np.ndarray:
 
-        """
-        Returns prediction.
-
-
-        -VARIABLES-
-
-        u: input
-
-        y: to be predicted
-
-        - valLen: Validation length. If u or y is provided it is not needed to be set. Mostly necessary for when neither u nor y is present.
-
-        - f_out: Custom output activation. Default is identity.
-
-        - wobble: For enabling random noise. Default is False.
-
-        - wobbler: User can provide custom noise. Disabled per default.
+    def predict(self,
+            u: Optional[np.ndarray|torch.Tensor]=None,
+            y: Optional[np.ndarray|torch.Tensor]=None,
+            predLen: Optional[int]=None,
+            wobble: bool|np.ndarray|torch.Tensor=False,
+            )-> np.ndarray|torch.Tensor:
         
-        - keyword arguments:
-
-            - verbose: Set to False to disable messages and warnings.
-
-        """
-
-        verbose = kwargs.get('verbose',self._verbose)
-
-
         assert self._Wout is not None
-        assert isinstance(u,Optional[self.__stt]) and isinstance(y,Optional[self.__stt]), f'Please give numpy arrays or torch tensors. type(u):{type(u)} and type(y):{type(y)}'
-
-        assert u is not None or y is not None or valLen is not None, 'valLen is needed to know how many steps the reservoir should generate outputs.'
         
-        if u is not None:
-            assert self._inSize == u.shape[0], "Please give input consistent with training input."
-            valLen = u.shape[-1]
-        if y is not None:
-            assert self._outSize == y.shape[0], "Please give output consistent with training output."
-            valLen = y.shape[-1]
+        return self.__call__(self.excite(u=u,
+                                        y=y,
+                                        totLen=predLen,
+                                        wobble = wobble,
+                                        validation=True
+                                        )
+                            )
 
-        # Wobbler
-        assert self._update_rule_id_train % 2 or not wobble and wobbler is None
-        # assert wobbler is None or wobble
-        if wobble and wobbler is None:
-           self.__wobbler_val = np.random.uniform(-1,1,size=(self._Wout.shape[0],valLen)).astype(self._dtype)/10000
-        elif wobbler is not None:
-            self.__wobbler_val = wobbler
-        else:
-            self.__wobbler_val = np.zeros(shape=(self._Wout.shape[0],valLen),dtype=self._dtype)
-
-        self.excite(u, y, initLen=0,trainLen=valLen,validation_mode=True,verbose=verbose)
-
-        return self.__call__(self._X_val)
-
-    # TODO: inittrainlen ve initlen i birlestir
+    # TODO: ridge_param,solver etc. kwarg olmali sanki
     def session(self,
-                X_t: Optional[np.ndarray]=None,
-                y_t: Optional[np.ndarray]=None,
-                X_v: Optional[np.ndarray]=None,
-                y_v: Optional[np.ndarray]=None,
-                training_data: Optional[np.ndarray]=None,
+                X_t: Optional[np.ndarray|torch.Tensor]=None,
+                y_t: Optional[np.ndarray|torch.Tensor]=None,
+                X_v: Optional[np.ndarray|torch.Tensor]=None,
+                y_v: Optional[np.ndarray|torch.Tensor]=None,
+                fit_data: Optional[np.ndarray|torch.Tensor]=None,
                 f_out_inverse: Optional[Callable]=None,
                 initLen: Optional[int]=None, 
-                initTrainLen_ratio: Optional[float]=None,
                 trainLen: Optional[int]=None,
                 valLen: Optional[int]=None,
-                wobble: bool=False,
-                wobbler: Optional[np.ndarray]=None,
-                wobble_val: bool=False,
-                wobbler_val: Optional[np.ndarray]=None,
+                wobble: bool | np.ndarray | torch.Tensor=False,
+                wobble_val: bool | np.ndarray | torch.Tensor=False,
                 regr: Optional[Callable]=None,
                 reg_type: str="ridge",
                 ridge_param: float=1e-8,
                 solver: str="auto",
                 error_measure: str="mse",
                 **kwargs
-                ) -> np.ndarray:
+                ) -> np.ndarray|torch.Tensor:
         
         """
 
@@ -857,24 +637,23 @@ class ESN:
 
 
         """
-        assert y_t is not None or training_data is not None
+        assert y_t is not None or fit_data is not None
 
         self.clear()
 
         self.excite(u=X_t,
                     y=y_t,
                     initLen=initLen,
-                    trainLen=trainLen,
-                    initTrainLen_ratio=initTrainLen_ratio,
+                    totLen=trainLen,
                     wobble=wobble,
-                    wobbler=wobbler
+                    validation=False
                     )
         
         # one-step ahead prediction
-        if training_data is None:
-            training_data = y_t[:,self._initLen:]
+        if fit_data is None:
+            fit_data = y_t[:,self._initLen:]
         
-        self.fit(y=training_data,
+        self.fit(y=fit_data,
                     f_out_inverse=f_out_inverse,
                     regr=regr,
                     reg_type=reg_type,
@@ -885,16 +664,14 @@ class ESN:
                     )
 
         if kwargs.get("train_only"):
-            return self.__call__(self.reg_X)
-
-        pred = self.validate(u=X_v,
-                    y=y_v,
-                    valLen=valLen,
-                    wobble = wobble_val,
-                    wobbler = wobbler_val
-                    )
+            return self.__call__()
         
-        return pred
+        return self.predict(u=X_v,
+                            y=y_v,
+                            predLen=valLen,
+                            wobble = wobble_val,
+                            validation=True
+                            )
 
     def test(self,initLen,teacherLen,autonomLen,y_test):...
     #     assert self._layer_mode == 'single'
@@ -912,8 +689,8 @@ class ESN:
     def update_reservoir_layer(self,
         in_:Optional[np.ndarray | torch.Tensor]=None,
         out_:Optional[np.ndarray | torch.Tensor]=None,
-        get_x:bool=False,
-        mode:Optional[str]=None) -> None:
+        get_x:Optional[bool]=False
+        ) -> None:
         """
         - in_: input array
         - out_: output array
@@ -921,26 +698,12 @@ class ESN:
         - mode: Optional. Set to 'train' if you are updating the reservoir layer for training purposes. Set to 'val' if you are doing so for validation purposes. \
                 This will allow the ESN to name the training/validation modes, which can be accessed from 'training_type' and 'val_type' attributes.
         """
-        # if in_ is not None:
-        #     # assert len(in_.shape) == 2,f'{in_.shape}'
-        #     assert in_.shape[0]==self.reservoir_layer.shape[-1], f'Inconsistent reservoir and input shape: {in_.shape}'
-        # if out_ is not None:
-        #     # assert len(out_.shape) == 2,f'{out_.shape}'
-        #     assert out_.shape[0]==self.reservoir_layer.shape[-1], 'Inconsistent reservoir and input shape.'
-        self._update_rule_id_check(in_,out_,mode)
 
         self._reservoir_layer = self._get_update(self._reservoir_layer,in_=in_,out_=out_)
 
         if self.__safe_update:
             self.__check_reservoir_layer()
-            # _hasnan,_correctshape = self.__check_reservoir_layer()
 
-            # assert not _hasnan, 'NaN value encountered in reservoir layer!'
-
-            # if not _correctshape:
-            #     in_shape_msg = '' if in_ is None else f'Input shape: {in_.shape}.'
-            #     out_shape_msg = '' if out_ is None else f'Output shape: {out_.shape}.'
-            #     raise Exception('Reservoir layer has chaged shape. Check your input and/or output!' + in_shape_msg + ' ' + out_shape_msg)
         if get_x:
             return self._pack_internal_state(in_=in_,out_=out_)
 
@@ -959,8 +722,6 @@ class ESN:
         if out_ is not None:
             raise NotImplementedError
 
-        self._update_rule_id_check(in_,out_,mode)
-
         layer_mode = self._layer_mode
 
         batch_size = self.batch_size
@@ -969,12 +730,12 @@ class ESN:
 
         if layer_mode == 'batch':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(resSize,batch_size)
+            res_layer_temp = self.__send_tensor_to_device(self.__tensor(np.zeros((self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(resSize,batch_size)
 
         # TODO: Make it work for randomly initialized non-null reservoir initial state.
         elif self._layer_mode == 'ensemble':
             self.set_reservoir_layer_mode('single')  #(resSize,1)
-            res_layer_temp = self._send_tensor_to_device(self._tensor(np.zeros((self.no_of_reservoirs,self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(no_of_reservoirs,resSize,batch_size)
+            res_layer_temp = self.__send_tensor_to_device(self.__tensor(np.zeros((self.no_of_reservoirs,self._resSize,self.batch_size+init_size),dtype=self._dtype)))  #(no_of_reservoirs,resSize,batch_size)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 self.set_reservoir_layer_mode('ensemble',batch_size=1)  #(no_of_reservoirs,resSize,1)
@@ -1000,12 +761,7 @@ class ESN:
         self._reservoir_layer = res_layer_temp[...,init_size:]
 
     def reset_reservoir_layer(self) -> None:
-        if self._os == 'numpy':
-            self._reservoir_layer = self._reservoir_layer_init.copy()
-        elif self._os == 'torch':
-            self._reservoir_layer = self._reservoir_layer_init.clone()
-        else:
-            raise Exception('Unknown os.')
+        self._reservoir_layer = self.__copy(self._reservoir_layer_init)
 
     def set_reservoir_layer_mode(self,mode: str,batch_size: Optional[int]=None,no_of_reservoirs : Optional[int]=None):
 
@@ -1045,7 +801,7 @@ class ESN:
 
     def copy_from(self,reservoir,bind:bool=False,**kwargs) -> None:
         assert isinstance(reservoir,self.__class__)
-        assert self._os == reservoir._os, f'Reservoirs do not have same OS: {self._os} != {reservoir._os}.'
+        assert self.__os == reservoir._os, f'Reservoirs do not have same OS: {self.__os} != {reservoir._os}.'
 
         # Skipping layer_mode bcs batch and ensemble layer modes are not supported for ESN.
         self.__bypass_rules = True
@@ -1054,13 +810,13 @@ class ESN:
         for prop in self._properties:
             if not prop in ['spectral_radius','spectral_norm']:
                 other_prop = getattr(reservoir,prop)
-                other_prop = self._get_clone(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
+                other_prop = self.__copy(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
                 self._set(prop, other_prop,verbose=verbose)
 
         for prop in ['_verbose','_xn','_pn','_core_nodes','_reservoir_layer_init','_update_rule_id_train','_initLen','_wobbler',
                                                 '_update_rule_id_val','training_type','validation_type','states','val_states','_y_train_last','reg_X','_X_val']:
             other_prop = getattr(reservoir,prop)
-            other_prop = self._get_clone(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
+            other_prop = self.__copy(other_prop) if not bind and isinstance(other_prop, np.ndarray| torch.Tensor) else other_prop
             self.__setattr__(prop, other_prop)
 
         self.__bypass_rules = False
@@ -1079,7 +835,7 @@ class ESN:
         for w in weights_list:
             other_w = getattr(reservoir,w)
             if other_w is not None:
-                other_w = other_w if bind else self._get_clone(other_w)
+                other_w = other_w if bind else self.__copy(other_w)
             self._set(w, other_w,verbose=verbose)
 
     def make_connection(self,w_name:str,inplace:bool=False,**kwargs) -> Optional[np.ndarray | torch.Tensor]:
@@ -1107,7 +863,7 @@ class ESN:
             if hasattr(val,'cpu'):
                 val = val.cpu()
             elif hasattr(val,'to'):
-                val = self._send_tensor_to_device(val)
+                val = self.__send_tensor_to_device(val)
     
     def save(self,save_path:str) -> None:
         """
@@ -1140,23 +896,26 @@ class ESN:
             self._verbose = not verbose
 
     def clear(self):
-        self.reg_X = None
+        self._initLen = None
+        self.__y_train_last = None
+        self.__X_train_last = None
+        self.X = None
         self.states = None
-        self.val_states = None
         self.training_type = None
         self.validation_type = None
-        self._initLen = None
         self._update_rule_id_train = None
         self._update_rule_id_val = None
-        self._X_val = None
         self._U = None
         self.reset_reservoir_layer()
         
     def forward(self,in_:Optional[np.ndarray | torch.Tensor]=None,out_:Optional[np.ndarray | torch.Tensor]=None) -> np.ndarray | torch.Tensor:
         return self.__call__(self.update_reservoir_layer(in_,out_,get_x=True))
 
-    def __call__(self, x:np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
-        return self._f_out(self._mm(self._Wout,x))
+    def __call__(self, x:np.ndarray | torch.Tensor=None) -> np.ndarray | torch.Tensor:
+        if x is None:
+            return self._f_out(self._mm(self._Wout,self.X))
+        else:
+            return self._f_out(self._mm(self._Wout,x))
 
     def _set(self,prop:str,val:float | Callable | bool,**kwargs) -> None:
 
@@ -1180,7 +939,7 @@ class ESN:
             warn = False if old_val is None else True
             assert prop not in self.__change_unsupported or warn is False, f'Changing {prop} is not supported.'
 
-
+        #### Checks and warning ###
         if prop == 'f' or prop == 'f_out':
             val = self._fn_interpreter(val)
         elif prop == 'leak_rate':
@@ -1191,9 +950,10 @@ class ESN:
             if warn is False:
                 assert not hasattribute or val is None, 'Reservoir was initialized without bias. Please reinitialize to use bias.'
 
-
         assert val is not None or not warn, f'{prop} cannot be set to None.'
+        ##########################
 
+        ### Setting stuff ###
         if prop == 'spectral_radius':
             if val is not None:
                 self.scale_reservoir_weights(desired_scaling=val,reference='ev')
@@ -1205,7 +965,7 @@ class ESN:
             size_ = 0
 
             if val is not None:
-                assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self._os]), 'Connection matrices must be 2D.'
+                assert len(val.shape)==2 and isinstance(val,self.__os_type_dict[self.__os]), 'Connection matrices must be 2D.'
                 assert self.__compare_dtype(val), f"Data type of the {weight_dict[prop]} connection matrix provided by the user does not match the reservoir's data type: {self._dtype} vs. {val.dtype}.\
                                                                     To change reservoir's data type use keyword argument 'dtype' during initialization."
 
@@ -1239,13 +999,21 @@ class ESN:
                 elif verbose:
                     if val is not None:
                         print(f'{prop} has been set to {val}.')
+        ####################
 
+        ### Changing other things dependent on this thing ###
         if prop == 'bias':
             if self._verbose and self._bias == 0:
                 warnings.warn("You have set the bias to zero.")
             self.__bias = False if self._bias is None else True
             self._make_bias_vec()
-
+            if self._get_update is not None:
+                self.__set_updater()
+        elif prop == 'leak_version':
+            if self._get_update is not None:
+                self.__set_updater()
+        #####################################################
+    
     def _make_bias_vec(self):
         # assert self._bias != 0,'Bias equal to zero is forbidden.'
 
@@ -1261,7 +1029,7 @@ class ESN:
             else:
                 raise Exception(f"Unknown layer mode: {self._layer_mode}.")
             
-            self._bias_vec = self._send_tensor_to_device(self._tensor(self._bias_vec))
+            self._bias_vec = self.__send_tensor_to_device(self.__tensor(self._bias_vec))
  
     def _make_reservoir_layer(self):
 
@@ -1278,8 +1046,8 @@ class ESN:
         else:
             raise Exception(f"Unknown layer mode: {self._layer_mode}.")
 
-        self._reservoir_layer = self._send_tensor_to_device(self._tensor(self._reservoir_layer))
-        self._reservoir_layer_init = self._get_clone(self._reservoir_layer)
+        self._reservoir_layer = self.__send_tensor_to_device(self.__tensor(self._reservoir_layer))
+        self._reservoir_layer_init = self.__copy(self._reservoir_layer)
 
     def _collapse_reservoir_layers(self):
 
@@ -1317,7 +1085,7 @@ class ESN:
             self._layer_mode = 'batch'
 
         elif self._layer_mode == 'batch':
-            assert self._os == 'torch', "To use ensemble mode, please pass in keyword argument 'use_torch=True' when initializing your Echo State Network."
+            assert self.__os == 'torch', "To use ensemble mode, please pass in keyword argument 'use_torch=True' when initializing your Echo State Network."
             self._layer_mode = 'ensemble'
             self._vstack = lambda x: torch.cat(x,1)
             self._hstack = lambda x: torch.cat(x,2)
@@ -1331,10 +1099,10 @@ class ESN:
 
     def _pack_internal_state(self,in_=None,out_=None):
 
-        in_ = self._atleastND(in_)
-        out_ = self._atleastND(out_)
+        # in_ = self._atleastND(in_)
+        # out_ = self._atleastND(out_)
 
-        result = self._reservoir_layer.copy()
+        result = self.__copy(self._reservoir_layer)
 
         if out_ is not None:
             result = self._vstack((out_,result))
@@ -1364,39 +1132,20 @@ class ESN:
     def _get_update_rule_id(self,in_=None,out_=None):
         return min(3,((in_ is not None) + 1)*((in_ is not None)+(out_ is not None)))
     
-    def _update_rule_id_check(self,in_,out_,mode):
-        #assert len(self._reservoir_layer.shape)>1 and self._reservoir_layer.shape[1]==1,self._reservoir_layer.shape
-
-        if mode is not None:
-            if mode == "train":
-                update_rule_id = self._get_update_rule_id(in_,out_)
-                if self._update_rule_id_train is None:
-                    self._update_rule_id_train = update_rule_id   
-                else:
-                    assert update_rule_id == self._update_rule_id_train
-            elif mode == "val":
-                update_rule_id = self._get_update_rule_id(in_,out_)
-                if self._update_rule_id_val is None:
-                    self._update_rule_id_val = update_rule_id   
-                else:
-                    assert update_rule_id == self._update_rule_id_val
-            else:
-                raise Exception("You have given unsupported input for the 'mode' argument.")
-
     def _fn_interpreter(self,f):
         if isinstance(f,str):
             self.__f_out_name = f
             if f.lower()=="tanh":
-                return np.tanh if self._os == 'numpy' else torch.tanh
+                return np.tanh if self.__os == 'numpy' else torch.tanh
             elif f.lower()=="sigmoid":
-                return sigmoid if self._os == 'numpy' else torch.sigmoid
+                return sigmoid if self.__os == 'numpy' else torch.sigmoid
             elif f.lower()=="relu":
-                return leaky_relu(0) if self._os == 'numpy' else torch.relu
+                return leaky_relu(0) if self.__os == 'numpy' else torch.relu
             elif f.lower().startswith('leaky'):
                 neg_slope = float(f.split('_')[-1])
-                return leaky_relu(neg_slope) if self._os == 'numpy' else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
+                return leaky_relu(neg_slope) if self.__os == 'numpy' else lambda x: torch.nn.functional.leaky_relu(x,neg_slope)
             elif f.lower()=="softmax":
-                return softmax if self._os == 'numpy' else lambda x: torch.softmax(x,0,dtype=self._reservoir_layer.dtype)
+                return softmax if self.__os == 'numpy' else lambda x: torch.softmax(x,0,dtype=self._reservoir_layer.dtype)
             elif f.lower()=="id":
                 return Id
             else:
@@ -1409,108 +1158,261 @@ class ESN:
             return f
 
     def _vstack(self,x,*args,**kwargs):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return np.vstack(x,*args,**kwargs)
         else:
             return torch.vstack(x,*args,**kwargs)
 
     def _hstack(self,x,*args,**kwargs):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return np.hstack(x,*args,**kwargs)
         else:
             return torch.hstack(x,*args,**kwargs)
     
     def _cat(self,x,*args,**kwargs):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return np.concatenate(x,*args,**kwargs)
         else:
             return torch.cat(x,*args,**kwargs)
 
     def _column_stack(self,x,*args,**kwargs):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return np.column_stack(x,*args,**kwargs)
         else:
             return torch.column_stack(x,*args,**kwargs )
 
-    def _tensor(self,x) -> Optional[np.ndarray | torch.Tensor]:
-        assert self.__compare_dtype(x)
-        if self._os == 'numpy':
-            if isinstance(x,Optional[np.ndarray]):
-                return x
-            elif isinstance(x,list):
-                return np.array(x)
-            elif isinstance(x,torch.Tensor):
-                return x.cpu().numpy()
-            else:
-                raise NotImplementedError
-        else:
-            if isinstance(x,Optional[torch.Tensor]):
-                return x
-            elif isinstance(x,list):
-                return torch.tensor(x)
-            elif isinstance(x,np.ndarray):
-                return torch.from_numpy(x)
-            else:
-                raise NotImplementedError
-
-    def _get_clone(self,x) -> np.ndarray | torch.Tensor:
-        if self._os == 'numpy':
-            return x.copy()
-        else:
-            return x.clone()
-
-    def _torchify(self):
-
-        self._os = 'torch'
-
-        self._mm = torch.matmul if self._os == 'numpy' else self._mm #Dont change this
-
-        for W_str in ['Wout','W','Win','Wback']:
-            W_ = self.__getattribute__(W_str)
-            if W_ is not None:
-                self.__setattr__(W_str,self._tensor(W_).to(self._device))
-
-            if self._bias_vec is not None:
-                self._bias_vec = self._tensor(self._bias_vec).to(self._device)
-            self._reservoir_layer = self._tensor(self._reservoir_layer).to(self._device)
-            self._reservoir_layer_init = self._tensor(self._reservoir_layer_init).to(self._device)
-            self._vstack = torch.vstack
-            self._hstack = torch.hstack
-            self._cat = torch.cat
-
-        if self._random_state is not None:
-            torch.manual_seed(int(self._random_state))
-
-    def _get_tensor_device(self,x):
-        if isinstance(x,np.ndarray):
-            return 'cpu'
-        elif isinstance(x,torch.Tensor):
-            return x.device.type
-        else:
-            raise Exception("Unsupported Tensor/Array type!")
-
-    def _send_tensor_to_device(self,x):
-        if hasattr(x,'to'):
-            return x.to(self._device)
-        else:
-            return x
-
     def __spectral_radius(self):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return float(abs(np.linalg.eigvals(self._W)).max().real) #abs(linalg.eig(self._W)[0]).max()
-        elif self._os == 'torch':
+        elif self.__os == 'torch':
             return float(torch.linalg.eigvals(self._W.cpu()).abs().max().item())
         else:
             raise Exception("Unknown os type.")
 
     def __spectral_norm(self):
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             return float(np.linalg.svd(self._W,compute_uv=False).max())
-        elif self._os == 'torch':
+        elif self.__os == 'torch':
             return float(torch.linalg.svdvals(self._W.cpu()).max().item())
         else:
             raise Exception("Unknown os type.")
 
+    def __excite(self,
+                validation: bool,
+                u: Optional[np.ndarray]=None,
+                y: Optional[np.ndarray]=None,
+                initLen: Optional[int|float]=None, 
+                trainLen: Optional[int]=None,
+                wobble: bool | np.ndarray | torch.Tensor=False
+                ) -> None:
+        """
+
+        Description
+        -
+        Stimulate reservoir states either with given inputs and/or outputs or let it excite itself without input and output.
+
+        Variables
+        -
+            - validation: You can use this method after training to prepare the reservoir for validation.
+
+            - u: Input. Has shape [...,time].
+
+            - y: To be predicted. Has shape [...,time].
+
+
+            - initLen: No of timesteps to initialize the reservoir. Will override initTrainLen_ratio. 
+                        Will be set to an eighth of the training length if not provided. 
+                        Alternatively, the user can provide the initialization period as ratio of the training length.
+
+            - trainLen: Total no of training steps. Will be set to the length of input data if not provided.
+        """
+
+        update_rule_id,initLen,trainLen,y_ = self.__prepare_for_update(in_=u,out_=y,initLen=initLen,trainLen=trainLen,validation=validation,wobble=wobble)
+        assert not initLen or not validation
+        # Exciting the reservoir states
+        X = self.__tensor(np.zeros((self.__bias + self._resSize + self._inSize + self._outSize,trainLen-initLen),dtype=self._dtype))
+        # self.__safe_update = False
+        # no u, no y
+        if update_rule_id == 0:
+            if validation:
+                if self._update_rule_id_train == 1:
+                    # training was with no u, yes y. now validation with no u, yes y_pred
+                    y_temp = self.__call__(self.__X_train_last) + self.__wobbler_val[:,-1]
+                    for t in range(trainLen):
+                        X[:,t] =  self.update_reservoir_layer(out_=y_temp,get_x=True).ravel()
+                        y_temp = self.__call__(X[:,t]) + self.__wobbler_val[:,t]
+                else:
+                    # training was with no u, no y
+                    for t in range(trainLen):
+                        X[:,t] = self.update_reservoir_layer(get_x=True).ravel()
+            else:
+                for t in range(1,initLen):
+                    self.update_reservoir_layer()
+                for t in range(initLen,trainLen):
+                    X[:,t-initLen] = self.update_reservoir_layer(get_x=True).ravel()
+        # no u, yes y
+        elif update_rule_id == 1:
+            if validation:
+                # no u, yes y
+                y_temp = self.__y_train_last
+                for t in range(trainLen):
+                    X[:,t] = self.update_reservoir_layer(None,y_temp,get_x=True).ravel()
+                    y_temp = y[:,t]  + self.__wobbler_val[:,t]
+            else:
+                for t in range(1,initLen):
+                    self.update_reservoir_layer(out_=y_[:,t-1])
+                for t in range(initLen,trainLen):
+                    X[:,t-initLen] = self.update_reservoir_layer(out_=y_[:,t-1],get_x=True).ravel()
+                self.__y_train_last = y[:,-1]
+                self.__X_train_last = X[:,-1]
+        # yes u, no y
+        elif update_rule_id == 2:
+            if validation:
+                if self._update_rule_id_train == 3:
+                    # yes u, yes y_pred (generative)
+                    y_temp = self.__call__(self.__X_train_last) + self.__wobbler_val[:,-1]
+                    for t in range(trainLen):
+                        X[:,t] = self.update_reservoir_layer(in_=u[:,t],out_=y_temp,get_x=True).ravel()
+                        y_temp = self.__call__(X[:,t]) + self.__wobbler_val[:,t]
+                else:
+                    # yes u, no y
+                    for t in range(trainLen):
+                        X[:,t] = self.update_reservoir_layer(in_=u[:,t],get_x=True).ravel()
+            else:
+                for t in range(1,initLen):
+                    self.update_reservoir_layer(in_=u[:,t])
+                for t in range(initLen,trainLen):
+                    X[:,t-initLen] = self.update_reservoir_layer(in_=u[:,t],get_x=True).ravel()
+        # yes u, yes y
+        elif update_rule_id == 3:
+            assert u.shape[-1] == y.shape[-1], "Inputs and outputs must have same shape at the last axis (time axis)."
+            if validation:
+                y_temp = self.__y_train_last + self.__wobbler_val[:,-1]
+                for t in range(trainLen):
+                    X[:,t] = self.update_reservoir_layer(in_=u[:,t],out_=y_temp,get_x=True).ravel()
+                    y_temp = y[:,t] + self.__wobbler_val[:,t]
+            else:
+                for t in range(1,initLen):
+                    self.update_reservoir_layer(in_=u[:,t],out_=y_[:,t-1])
+                for t in range(initLen,trainLen):
+                    X[:,t-initLen] = self.update_reservoir_layer(in_=u[:,t],out_=y_[:,t-1],get_x=True).ravel()
+                self.__y_train_last = y[:,-1]
+                self.__X_train_last = X[:,-1]
+        #?
+        else:
+            raise NotImplementedError("Could not find a case for this training.")       
+
+        # self.__safe_update = True
+        self.__check_reservoir_layer()
+
+        return X
+    
+    def __prepare_for_update(self
+                    ,in_:Optional[np.ndarray | torch.Tensor]=None
+                    ,out_:Optional[np.ndarray | torch.Tensor]=None
+                    ,initLen: Optional[int|float]=None
+                    ,trainLen: Optional[int]=None
+                    ,wobble: bool | np.ndarray | torch.Tensor=False
+                    ,validation: bool=False
+                    ):
+        
+        assert isinstance(in_,Optional[self.__os_type_dict[self.__os]]) and isinstance(out_,Optional[self.__os_type_dict[self.__os]]), f'Please give {Optional[self.__os_type_dict[self.__os]]}. type(u):{type(in_)} and type(y):{type(out_)}'
+        assert isinstance(wobble,bool) or isinstance(wobble,self.__os_type_dict[self.__os])
+        wobbler_ = 0 # This is needed such that this method can return wobbler, which is expected by __excite
+        y_=None
+
+        """
+        0: both no
+        1: no u yes y
+        2: yes u no y
+        3: both yes
+        """
+
+        #Handling I/O
+        if in_ is not None:
+            assert len(in_.shape) == 2
+            trainLen = in_.shape[-1] if trainLen is None else trainLen
+            assert self.__get_tensor_device(in_) == self._device, (self._device,in_)
+            if self._Win is None:
+                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
+            assert self._Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self._Win.shape,in_.shape]
+        else:
+            assert not self._inSize,'Please initialize the reservoir with Win only if you are going to use it.'
+
+        if out_ is not None:
+            assert len(out_.shape) == 2
+            trainLen = out_.shape[-1] if trainLen is None else trainLen # Here we do not force the user to have same number of time points in u and y. Also trainLen does not have to be equal to number of time points.
+            assert self.__get_tensor_device(out_) == self._device, (self._device,out_)
+            if self._Wback is None:
+                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
+            assert self._Wback.shape[1]==self._atleastND(out_).shape[0], "Please give input consistent with training output."
+
+        # Update rule recognition based on I/O
+        update_rule_id = self._get_update_rule_id(in_,out_)
+        
+        # Set update_rule_ids/names for training or validation
+        # Set wobbler
+        if validation:
+            # Check training/validation synergies
+            if self._update_rule_id_train == 2 and update_rule_id == 0:
+                raise Exception('Consider teacher forced training and autonomous validation.')
+            assert self._update_rule_id_train == update_rule_id or self._update_rule_id_train - update_rule_id == 1 and not update_rule_id%2 \
+                ,f"You trained the network in {self.training_type} mode but trying to forecast in {self.validation_type} mode."
+            
+            # Set update_rule_ids/names for validation
+            new_val_type = validation_rule_dict[self._update_rule_id_train][update_rule_id]
+            if self._update_rule_id_val is not None and self._verbose:
+                warnings.warn(f"You have already performed validation of type {self.validation_type} with this reservoir. Now you are doing validation of type {new_val_type}.")
+            self._update_rule_id_val = update_rule_id
+            self.validation_type = new_val_type
+
+            if self.validation_type == validation_rule_dict[0][0] and self._verbose:
+                warnings.warn(f"You are forecasting in {validation_rule_dict} mode!")
+
+            # Wobble
+            assert self._update_rule_id_train % 2 or not wobble, "Wobble states are desired only in teacher forced settings."
+            # assert wobbler is None or wobble
+            if wobble is True:
+                self.__wobbler_val = self.__tensor(np.random.uniform(-1,1,size=(self._Wout.shape[0],trainLen)).astype(self._dtype)/10000)
+            elif isinstance(wobble,self.__os_type_dict[self.__os]):
+                assert wobble.shape == (self._Wout.shape[0],trainLen)
+                self.__wobbler_val = self.__copy(wobble)
+            else:
+                self.__wobbler_val = self.__tensor(np.zeros(shape=(self._Wout.shape[0],trainLen),dtype=self._dtype))
+        else:
+            # Set update_rule_ids/names for training
+            if self._update_rule_id_train is None:
+                self._update_rule_id_train = update_rule_id
+            else:
+                assert self._update_rule_id_train == update_rule_id
+            self.training_type = training_type_dict[update_rule_id]
+
+            # Wobble
+            assert out_ is not None or wobble is None or wobble is False ,"Wobble states are desired only in teacher forced settings."
+            if wobble is True:
+                wobbler_ = self.__tensor(np.random.uniform(-1,1,size=out_.shape).astype(self._dtype)/10000)
+            elif isinstance(wobble,self.__os_type_dict[self.__os]):
+                assert out_.shape == wobble.shape, f"Wobbler must have shape same as the output: {out_.shape} != {wobble.shape}."
+                wobbler_ = self.__copy(wobble)
+            y_ = None if out_ is None else out_ + wobbler_
+
+        # Initialization and Training Lengths
+        assert trainLen is not None or not update_rule_id, 'trainLen must be provided in the case of Self-Feedback.'
+        assert isinstance(trainLen,int), f"Training length must be integer. {trainLen} is given." # Yukarda trainLen'i setlemeye calistik.
+        assert isinstance(initLen,Optional[int|float]),'initLen can be float between 0 and 1, a positive integer or None.'
+        if initLen is None:
+            initLen = 0 if validation else trainLen//8 # defaults for initLen
+        elif 0<initLen<1:
+            initLen *= trainLen
+        else:
+            assert initLen>=1 or initLen==0 and validation
+
+        self._initLen = int(initLen)
+
+        self.__check_connections()
+
+        return update_rule_id,initLen,trainLen,y_
+    
     def __generate_weight(self,w_name,size):
         supported = ['Win','W','Wback']
         if w_name in supported:
@@ -1533,17 +1435,7 @@ class ESN:
         elif w_name == 'Wback':
             w = np.random.uniform(-2,2,size=(self._resSize,size))
 
-        return self._send_tensor_to_device(self._tensor(w.astype(self._dtype)))
-
-    def __bulk_update(self,len1,len2,u,y,fb=False):...
-        # if fb:
-        #     pass
-        # else:
-        #     for t in range(1,len1):
-        #         self.update_reservoir_layer(u[:,t],y[:,t-1])
-        #     for t in range(len1,len2):
-        #         X[:,t-len1] = self.update_reservoir_layer(u[:,t],y_[:,t-1],get_x=True).ravel()
-        #         self.__y_train_last = y[:,-1]
+        return self.__send_tensor_to_device(self.__tensor(w.astype(self._dtype)))
 
     def __check_connections(self):
         assert self._W.shape[0] == self._W.shape[1], f'Reservoir matrix has to be square matrix: {self._W.shape[0]} != {self._W.shape[1]}.'
@@ -1554,20 +1446,20 @@ class ESN:
             assert self._Win.shape[1] == self._inSize + self.__bias, f'Mismatched input size and input weights: {self._Win.shape[1]} != {self._inSize + self.__bias}.'
             if self._Wout is not None:
                 assert self._Wout.shape[1] ==self._W.shape[0] + self._Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self._Wout.shape[1]} != {self._W.shape[0] + self._Win.shape[1]}.'
-                assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
+                # assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
         if self._Wback is not None:
             assert self._Wback.shape[0] == self._W.shape[0],f'Feedback matrix has shape, which is inconsistent with the reservoir matrix: {self._Wback.shape[0]} != {self._W.shape[0]}.'
             assert self._Wback.shape[0] == self._resSize, f'Mismatched reservoir size and feedback weights: {self._Wback.shape[0]} != {self._resSize}.'
             assert self._Wback.shape[1] == self._outSize, f'Mismatched output size and feedback weights: {self._Wback.shape[1]} != {self._outSize}.'
             if self._Wout is not None:
                 assert self._Wout.shape[0] == self._Wback.shape[1], f'Feedback matrix has shape, which is inconsistent with the output matrix: {self._Wout.shape[0]} != {self._Wback.shape[1]}.'
-                assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
+                # assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
     
     def __check_reservoir_layer(self):
 
-        if self._os == 'numpy':
+        if self.__os == 'numpy':
             _hasnan =  np.any(np.isnan(self._reservoir_layer))
-        elif self._os == 'torch':
+        elif self.__os == 'torch':
             _hasnan = torch.any(torch.isnan(self._reservoir_layer)).item()
         else:
             raise Exception("Unknown os type.")
@@ -1575,34 +1467,9 @@ class ESN:
         _correctshape = self._reservoir_layer_init.shape == self._reservoir_layer.shape
 
         assert not _hasnan, 'NaN value encountered in reservoir layer!'
-        assert _correctshape, 'Reservoir layer has chaged shape!'
+        assert _correctshape, 'Reservoir layer has changed shape!'
 
         # return _hasnan,_correctshape
-
-    def __prepare_for_update(self
-                    ,x:np.ndarray | torch.Tensor
-                    ,in_:Optional[np.ndarray | torch.Tensor]=None
-                    ,out_:Optional[np.ndarray | torch.Tensor]=None
-                    ):
-
-        if self._os == 'torch':
-            assert isinstance(in_,Optional[torch.Tensor]) and isinstance(out_,Optional[torch.Tensor]), 'Please give pytorch tensors.'
-
-        assert self._W.shape[-1]==x.shape[-2], [self._W.shape,x.shape]
-
-        if in_ is not None:
-            assert self._get_tensor_device(in_) == self._device, (self._device,in_)
-            if self._Win is None:
-                self.make_connection('Win',inplace=True,size=self._atleastND(in_).shape[-2])
-            assert self._Win.shape[-1] == self._atleastND(in_).shape[-2]+self.__bias,[self._Win.shape,in_.shape]
-
-        if out_ is not None:
-            if self._Wback is None:
-                self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
-
-            assert self._get_tensor_device(out_) == self._device, (self._device,out_)
-            
-            assert self._Wback.shape[1]==self._atleastND(out_).shape[0]
 
     def __set_updater(self):
 
@@ -1638,6 +1505,71 @@ class ESN:
     
     def __compare_dtype(self,x):
         return x.dtype == self._dtype or str(x.dtype).split('.')[-1] == self._dtype
+
+    def __copy(self,x) -> np.ndarray | torch.Tensor:
+        if self.__os == 'numpy':
+            return x.copy()
+        elif self.__os == 'torch':
+            return x.clone()
+        else:
+            raise Exception('Unknown os.')
+
+    def __torchify(self):
+
+        self.__os = 'torch'
+
+        self._mm = torch.matmul if self.__os == 'numpy' else self._mm #Dont change this
+
+        for W_str in ['Wout','W','Win','Wback']:
+            W_ = self.__getattribute__(W_str)
+            if W_ is not None:
+                self.__setattr__(W_str,self.__tensor(W_).to(self._device))
+
+            if self._bias_vec is not None:
+                self._bias_vec = self.__tensor(self._bias_vec).to(self._device)
+            self._reservoir_layer = self.__tensor(self._reservoir_layer).to(self._device)
+            self._reservoir_layer_init = self.__tensor(self._reservoir_layer_init).to(self._device)
+            self._vstack = torch.vstack
+            self._hstack = torch.hstack
+            self._cat = torch.cat
+
+        if self._random_state is not None:
+            torch.manual_seed(int(self._random_state))
+
+    def __tensor(self,x) -> Optional[np.ndarray | torch.Tensor]:
+        assert self.__compare_dtype(x)
+        if self.__os == 'numpy':
+            if isinstance(x,Optional[np.ndarray]):
+                return x
+            elif isinstance(x,list):
+                return np.array(x)
+            elif isinstance(x,torch.Tensor):
+                return x.cpu().numpy()
+            else:
+                raise NotImplementedError
+        elif self.__os == 'torch':
+            if isinstance(x,Optional[torch.Tensor]):
+                return x
+            elif isinstance(x,list):
+                return torch.tensor(x)
+            elif isinstance(x,np.ndarray):
+                return torch.from_numpy(x)
+            else:
+                raise NotImplementedError
+
+    def __get_tensor_device(self,x):
+        if isinstance(x,np.ndarray):
+            return 'cpu'
+        elif isinstance(x,torch.Tensor):
+            return x.device.type
+        else:
+            raise Exception("Unsupported Tensor/Array type!")
+
+    def __send_tensor_to_device(self,x):
+        if hasattr(x,'to'):
+            return x.to(self._device)
+        else:
+            return x
 
 
 class ESNX(ESN):
@@ -1676,9 +1608,8 @@ class ESNX(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
+    def __excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
-
 
 
 class ESNS(ESN):
@@ -1724,9 +1655,8 @@ class ESNS(ESN):
 
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
+    def __excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
-
 
 
 class ESNN(ESN,torch.nn.Module):
@@ -1802,7 +1732,7 @@ class ESNN(ESN,torch.nn.Module):
         WARNING: DOES NOT UPDATE RESERVOIR LAYER(S)!
         """
 
-        assert self._get_tensor_device(in_) == self._device, (self._device,in_)
+        assert self.__get_tensor_device(in_) == self._device, (self._device,in_)
 
         # if self._update_rule_id_train is None:
         #     self._update_rule_id_train = 2
@@ -1820,5 +1750,5 @@ class ESNN(ESN,torch.nn.Module):
     
     def _pack_internal_state(self,in_=None,out_=None):
         raise NotImplementedError
-    def excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
+    def __excite(self, u: np.ndarray = None, y: np.ndarray = None, bias: float = None, f: str | Callable = None, leak_rate: float = None, initLen: int = None, trainLen: int = None, initTrainLen_ratio: float = None, wobble: bool = False, wobbler: np.ndarray = None, leak_version=0, **kwargs) -> None:
         raise NotImplementedError
