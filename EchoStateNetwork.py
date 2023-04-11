@@ -403,9 +403,9 @@ class ESN:
         training_data = u[:,initLen-delay:trainLen-delay]
 
         self.clear()
-        self.__excite(u=u[:,:trainLen],initLen=initLen)
+        self.excite(u=u[:,:trainLen],initLen=initLen)
         self.fit(y=training_data,reg_type=reg_type,f_out_inverse=kwargs.get('f_out_inverse'))
-        forecasts = self.validate(valLen=u.shape[1]-trainLen,u=u[:,trainLen:]).ravel()
+        forecasts = self.predict(predLen=u.shape[1]-trainLen,u=u[:,trainLen:]).ravel()
         target = u[:,trainLen-delay:-delay].ravel()
         self.clear()
         return np.corrcoef(forecasts,target)[0,1]**2
@@ -1371,7 +1371,6 @@ class ESN:
 
             # Wobble
             assert self._update_rule_id_train % 2 or not wobble, "Wobble states are desired only in teacher forced settings."
-            # assert wobbler is None or wobble
             if wobble is True:
                 self.__wobbler_val = self.__tensor(np.random.uniform(-1,1,size=(self._Wout.shape[0],trainLen)).astype(self._dtype)/10000)
             elif isinstance(wobble,self.__os_type_dict[self.__os]):
