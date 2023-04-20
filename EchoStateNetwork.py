@@ -1442,7 +1442,7 @@ class ESN:
             assert self._Win.shape[0] == self._resSize, f'Mismatched reservoir size and input weights: {self._Win.shape[0]} != {self._resSize}.'
             assert self._Win.shape[1] == self._inSize + self.__bias, f'Mismatched input size and input weights: {self._Win.shape[1]} != {self._inSize + self.__bias}.'
             if self._Wout is not None:
-                assert self._Wout.shape[1] ==self._W.shape[0] + self._Win.shape[1],f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self._Wout.shape[1]} != {self._W.shape[0] + self._Win.shape[1]}.'
+                assert self._Wout.shape[1] ==self._W.shape[0] + self._Win.shape[1] + self._outSize,f'Output matrix has shape, which is inconsistent with the reservoir and input matrices: {self._Wout.shape[1]} != {self._W.shape[0] + self._Win.shape[1] + self._outSize}.'
                 # assert self._Wout.shape[0] == self._outSize, f'Mismatched output size and output weights: {self._Wout.shape[0]} != {self._outSize}.'
         if self._Wback is not None:
             assert self._Wback.shape[0] == self._W.shape[0],f'Feedback matrix has shape, which is inconsistent with the reservoir matrix: {self._Wback.shape[0]} != {self._W.shape[0]}.'
