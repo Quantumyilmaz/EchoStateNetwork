@@ -1315,6 +1315,9 @@ class ESN:
                     ,validation: bool=False
                     ):
         
+        # Update rule recognition based on I/O
+        update_rule_id = self._get_update_rule_id(in_,out_)
+        assert trainLen is not None or update_rule_id, 'trainLen must be provided in the case of Self-Feedback.'
         assert isinstance(in_,Optional[self.__os_type_dict[self.__os]]) and isinstance(out_,Optional[self.__os_type_dict[self.__os]]), f'Please give {Optional[self.__os_type_dict[self.__os]]}. type(u):{type(in_)} and type(y):{type(out_)}'
         assert isinstance(wobble,bool) or isinstance(wobble,self.__os_type_dict[self.__os])
         wobbler_ = 0 # This is needed such that this method can return wobbler, which is expected by __excite
@@ -1345,9 +1348,6 @@ class ESN:
             if self._Wback is None:
                 self.make_connection('Wback',inplace=True,size=self._atleastND(out_).shape[0])
             assert self._Wback.shape[1]==self._atleastND(out_).shape[0], "Please give input consistent with training output."
-
-        # Update rule recognition based on I/O
-        update_rule_id = self._get_update_rule_id(in_,out_)
         
         # Set update_rule_ids/names for training or validation
         # Set wobbler
@@ -1395,7 +1395,6 @@ class ESN:
             y_ = None if out_ is None else out_ + wobbler_
 
         # Initialization and Training Lengths
-        assert trainLen is not None or not update_rule_id, 'trainLen must be provided in the case of Self-Feedback.'
         assert isinstance(trainLen,int), f"Training length must be integer. {trainLen} is given." # Yukarda trainLen'i setlemeye calistik.
         assert isinstance(initLen,Optional[int|float]),'initLen can be float between 0 and 1, a positive integer or None.'
         if initLen is None:
