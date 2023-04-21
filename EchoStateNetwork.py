@@ -403,7 +403,7 @@ class ESN:
         training_data = u[:,initLen-delay:trainLen-delay]
 
         self.clear()
-        self.excite(u=u[:,:trainLen],initLen=initLen)
+        self.evolve(u=u[:,:trainLen],initLen=initLen)
         self.fit(y=training_data,reg_type=reg_type,f_out_inverse=kwargs.get('f_out_inverse'))
         forecasts = self.predict(predLen=u.shape[1]-trainLen,u=u[:,trainLen:]).ravel()
         target = u[:,trainLen-delay:-delay].ravel()
@@ -417,7 +417,7 @@ class ESN:
         if kwargs.get('verbose',self._verbose):
             print('Reservoir reconnected.')
 
-    def excite(self,
+    def evolve(self,
             u: Optional[np.ndarray|torch.Tensor]=None,
             y: Optional[np.ndarray|torch.Tensor]=None,
             initLen: Optional[int|float]=None, 
@@ -508,8 +508,8 @@ class ESN:
 
                 - verbose: For the error message.
                 
-                - reg_X: Lets you choose a custom matrix to be used in regression fit. For online training purposes, i.e. you "excite" up to a certain point in your data and do a forecast at that point and continue doing this at later points in your data.
-                Instead of "exciting" reservoir states multiple times up to these forecasts at varying points, which is inefficient since you perform same calculations repeatedly, you can excite using all data and use partial excitations, i.e. just the part
+                - reg_X: Lets you choose a custom matrix to be used in regression fit. For online training purposes, i.e. you "evolve" up to a certain point in your data and do a forecast at that point and continue doing this at later points in your data.
+                Instead of "exciting" reservoir states multiple times up to these forecasts at varying points, which is inefficient since you perform same calculations repeatedly, you can evolve using all data and use partial excitations, i.e. just the part
                 of self.X relevant and required for the regression.
 
         """
@@ -560,7 +560,7 @@ class ESN:
         
         assert self._Wout is not None
         
-        return self.__call__(self.excite(u=u,
+        return self.__call__(self.evolve(u=u,
                                         y=y,
                                         totLen=predLen,
                                         wobble = wobble,
@@ -593,7 +593,7 @@ class ESN:
 
         Description
         -
-        Executes the class methods excite, train and validate. Returns predictions.
+        Executes the class methods evolve, train and validate. Returns predictions.
 
         Variables
         -
@@ -641,7 +641,7 @@ class ESN:
 
         self.clear()
 
-        self.excite(u=X_t,
+        self.evolve(u=X_t,
                     y=y_t,
                     initLen=initLen,
                     totLen=trainLen,
@@ -1208,7 +1208,7 @@ class ESN:
 
         Description
         -
-        Stimulate reservoir states either with given inputs and/or outputs or let it excite itself without input and output.
+        Stimulate reservoir states either with given inputs and/or outputs or let it evolve itself without input and output.
 
         Variables
         -
